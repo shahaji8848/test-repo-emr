@@ -1,50 +1,4 @@
-const transactionalWrapper = require('../utils/controllerWrapper');
-const { exeQuery } = require('../utils/queryHandler.js');
-
-/* 
-To Get Param Details from Param Table with PTyp as Mandatory filters
-and optional filter on likeField and likeValue
-*/
-
-
-// Fetch design analytics parameter data from the Param table
-async function getDesignAnalytics(conn, anaSrList = []) {
-  const groupByClause = 'PMCd, PSCd, PDesc';  
-  const inputValuesMap = {
-    "PTyp": "DAANACD"
-  };     
-
-  const whereConditions = []
-
-  if (anaSrList.length > 0){
-    const inClause = anaSrList.map(v => `'${v}'`).join(", ");
-    whereConditions.push(`PMCd IN (${inClause})`)
-  }
-
-
-  const results = await getParamRecords(conn, {
-    whereConditions,
-    groupByClause,
-    inputValuesMap
-  });
-
-  // Prepare dictionary to group results by PMCd value
-  const resultDict = anaSrList.reduce((acc, no) => {
-    acc[no] = [];
-    return acc;
-  }, {});
-
-  results.forEach(record => {
-    const { PMCd, PSCd, PDesc } = record;
-    const key = parseInt(PMCd); // Ensure PMCd is treated as a number
-    if (resultDict[key]) {
-      resultDict[key].push({pmcd:PMCd, pscd:PSCd, pdesc:PDesc });
-    }
-  });
-
-  return resultDict; 
-}
-
+const { exeQuery } = require('../utils/queryHandler');
 
 /*
  * General utility function to retrieve data from Param table based on dynamic conditions
@@ -90,4 +44,4 @@ async function getParamRecords(conn, stmts = {}) {
   return await exeQuery(conn, stmts);
 }
 
-module.exports = { getParamRecords, getDesignAnalytics };
+module.exports = { getParamRecords };
