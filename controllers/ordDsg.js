@@ -9,7 +9,7 @@ const { copyOrdLab } = require('../controllers/ordLab.js');
 // Main function to fetch catalogues based on dynamic filters
 async function getCatalogues(conn){
   const kwargs = conn.req.body;
-  const { CsCd } = 1; // Extract user info from request
+  const { CsCd } = conn.req.userInfo?.CsCd; // Extract user info from request
   const inputTypeMap = {};     // Maps parameter names to SQL types
   const inputValuesMap = {};   // Maps parameter names to their values
 
