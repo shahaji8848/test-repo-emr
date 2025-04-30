@@ -39,7 +39,7 @@ async function login(conn) {
         ...defaultInputValuesMap,
         ...(stmts.inputValuesMap || {})
       };
-    stmts['selectClause']='PMCd As [User], PValue As Pwd';
+    stmts['selectClause']='PMCd As [User], PValue As Pwd, PDesc As [full_name]';
     stmts.whereConditions = [
         ...defaultWhereConditions,
         ...(stmts.whereConditions || [])
@@ -48,7 +48,7 @@ async function login(conn) {
     let CsCd = await getCurrentSessionCode(conn,username);
     if (loginData.length ==1) {
         const token = jwt.sign({ username,CsCd }, process.env.JWT_SECRET, { expiresIn: '24h' });
-        return {access_token:token,full_name:"" };
+        return {access_token:token,full_name:loginData[0]?.full_name||'' };
     }
     else {
         return { message: "Invalid username or password" };
