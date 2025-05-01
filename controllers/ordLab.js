@@ -87,7 +87,11 @@ function getCopyOrdLabQuery(row, inputTypeMap, inputValuesMap) {
         if (row[col] instanceof Date) {
           inputTypeMap[col] = sql.DateTime;
         } else if (typeof row[col] === 'number') {
-          inputTypeMap[col] = sql.Decimal;
+          if (Number.isInteger(row[col])) {
+            inputTypeMap[col] = sql.Int; 
+          } else {
+            inputTypeMap[col] = sql.Float;
+          }
         } else {
           inputTypeMap[col] = sql.VarChar;
         }
