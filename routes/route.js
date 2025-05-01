@@ -12,9 +12,9 @@ router.get("/getCatalogueFilters", authenticate, transactionalControllerWrapper(
 router.get("/getDsgConfig", authenticate, transactionalControllerWrapper(getDsgConfig));
 router.get("/getDsgCollections", authenticate, transactionalControllerWrapper(getDsgCollections));
 router.get("/getCatalogues", authenticate, transactionalControllerWrapper(getCatalogues));
-router.get("/createOrder", authenticate, transactionalControllerWrapper(createOrder));
 
 router.post("/login", transactionalControllerWrapper(login));
+router.post("/createOrder",authenticate, transactionalControllerWrapper(createOrder));
 
 // Catch-all route for invalid API endpoints
 router.use((req, res, next) => {
