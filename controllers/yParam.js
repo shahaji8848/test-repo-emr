@@ -1,5 +1,8 @@
 const { exeQuery } = require('../utils/queryHandler');
 
+/*
+Get YParam Records
+*/ 
 async function getYParamRecords(conn, stmts = {}) {
     if (!stmts.inputValuesMap || !stmts.inputValuesMap.PTyp) {
       throw new Error('Missing required parameter: PTyp');
