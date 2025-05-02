@@ -24,20 +24,22 @@ async function copyOrdLab(conn, kwargs = {}) {
   if (sourceRows.length === 0) return;
 
   let ToOlSrNo = 1;
-
+  const OrdLab = []
   for (const row of sourceRows) {
     const localInputValuesMap = { ...inputValuesMap, ToOlSrNo };
 
     const rawQuery = getCopyOrdLabQuery(row, inputTypeMap, localInputValuesMap);
-
-    result = await exeQuery(conn, {
+   
+    let result = await exeQuery(conn, {
       rawQuery,
       inputTypeMap,
       inputValuesMap: localInputValuesMap,
     });
+    OrdLab.push(result[0])
 
     ToOlSrNo++;
   }
+  return OrdLab
 }
 
 
@@ -68,9 +70,12 @@ function getOrdLabColumns() {
 }
 
 function getCopyOrdLabQuery(row, inputTypeMap, inputValuesMap) {
-  const columns = getOrdLabColumns()
+  const columns = getOrdLabColumns();
+
+  // Destination columns
   const insertColumns = columns.map(col => `[${col}]`).join(', ');
-  let insertQuery = '';
+
+  // Values to insert
   const values = columns.map(col => {
     switch (col) {
       case "OlCoCd": return "@ToOdCoCd";
@@ -88,7 +93,7 @@ function getCopyOrdLabQuery(row, inputTypeMap, inputValuesMap) {
           inputTypeMap[col] = sql.DateTime;
         } else if (typeof row[col] === 'number') {
           if (Number.isInteger(row[col])) {
-            inputTypeMap[col] = sql.Int; 
+            inputTypeMap[col] = sql.Int;
           } else {
             inputTypeMap[col] = sql.Float;
           }
@@ -99,7 +104,17 @@ function getCopyOrdLabQuery(row, inputTypeMap, inputValuesMap) {
       }
     }
   });
-  insertQuery += `INSERT INTO OrdLab (${insertColumns}) VALUES (${values.join(', ')});\n`;
+
+  // Query with OUTPUT clause to return inserted data
+  const insertQuery = `
+    DECLARE @InsertedData TABLE(${columns.map(col => `[${col}] NVARCHAR(MAX)`).join(', ')});
+
+    INSERT INTO OrdLab (${insertColumns})
+    OUTPUT ${columns.map(col => `INSERTED.[${col}]`).join(', ')} INTO @InsertedData
+    VALUES (${values.join(', ')});
+
+    SELECT * FROM @InsertedData;
+  `;
 
   return insertQuery;
 }

@@ -254,8 +254,8 @@ async function copyOrdDsg(conn, kwargs = {}, useKwargs = 0) {
 
   // fetch target header details
   let ToOdSr = await getTargetHeaderDetails(conn, toInputValuesMap)
-
   // Loop through each design row to copy
+  const finalResult = [];
   for (const row of dsgList) {
     const localInputValuesMap = {
       FromOdCoCd: row.OdCoCd,
@@ -266,33 +266,42 @@ async function copyOrdDsg(conn, kwargs = {}, useKwargs = 0) {
       FromOdSr: row.OdSr,
       OdSalPrc: row.OdSalPrc,
       OdOrdQty: row.quantity,
-
-      ...toInputValuesMap, 
-      ToOdSr 
-
+      ...toInputValuesMap,
+      ToOdSr
     };
-
-    const rawQuery = getCopyOrdDsgInsertSelectQuery()
-
+  
+    const rawQuery = getCopyOrdDsgInsertSelectQuery();
+  
     const result = await exeQuery(conn, {
       rawQuery,
       inputTypeMap,
       inputValuesMap: localInputValuesMap
     });
-
-    const ToOdIdNo = result?.[0]?.OdIdNo;
-    const childKwargs = {
-      ...localInputValuesMap,
-      ToOdIdNo
-    };
-
+  
+    const OrdDsg = result[0];
+    const ToOdIdNo = OrdDsg?.OdIdNo;
+  
     if (ToOdIdNo) {
-      await copyOrdRm(conn, childKwargs);
-      await copyOrdLab(conn, childKwargs);
+      const childKwargs = {
+        ...localInputValuesMap,
+        ToOdIdNo
+      };
+  
+      const OrdRm = await copyOrdRm(conn, childKwargs);
+      const OrdLab = await copyOrdLab(conn, childKwargs);
+  
+      OrdDsg.OrdRm = OrdRm || [];
+      OrdDsg.OrdLab = OrdLab || [];
+    } else {
+      OrdDsg.OrdRm = [];
+      OrdDsg.OrdLab = [];
     }
-
+  
+    finalResult.push(OrdDsg);
     ToOdSr++;
   }
+  
+  return finalResult
 }
 
 
@@ -363,10 +372,10 @@ function getCopyOrdDsgInsertSelectQuery() {
 
   // Prepare query
   const insertQuery = `
-    DECLARE @InsertedOdIdNo TABLE(OdIdNo INT);
+    DECLARE @InsertedData TABLE(${columns.map(col => `[${col}] NVARCHAR(MAX)`).join(', ')}, [OdIdNo] INT);
 
     INSERT INTO OrdDsg (${insertColumns})
-    OUTPUT INSERTED.OdIdNo INTO @InsertedOdIdNo(OdIdNo)
+    OUTPUT ${columns.map(col => `INSERTED.[${col}]`).join(', ')}, INSERTED.[OdIdNo] INTO @InsertedData
     SELECT ${selectExpressions}
     FROM OrdDsg
     WHERE OdCoCd = @FromOdCoCd
@@ -376,7 +385,7 @@ function getCopyOrdDsgInsertSelectQuery() {
       AND OdNo = @FromOdNo
       AND OdSr = @FromOdSr;
 
-    SELECT OdIdNo FROM @InsertedOdIdNo;
+    SELECT * FROM @InsertedData;
   `;
 
   return insertQuery;
@@ -412,8 +421,11 @@ async function createOrder(conn, kwargs = {}, useKwargs = 0) {
     ToOdChr: 'REG',
     ToOdNo: 1264
   };
-  await copyOrdDsg(conn, inputValuesMap, 1);
-  return `Order Created Successfully.`;
+  let data = await copyOrdDsg(conn, inputValuesMap, 1);
+  return {
+    msg: `Order Created Successfully.`,
+    data:data
+  }
 }
 
 
