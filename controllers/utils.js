@@ -5,7 +5,7 @@ const getCatalogueFilters = async (conn) => {
     const design_category = await getYParamRecords(conn, {
         selectClause: 'DISTINCT PMCd, PDesc',
         whereConditions: ['PTyp = @PTyp'],
-        inputValuesMap: { PTyp: 'ySubCtg' },
+        inputValuesMap: { PTyp: 'yDmCtg' },
       });
     
       const sub_category = await getYParamRecords(conn, {
