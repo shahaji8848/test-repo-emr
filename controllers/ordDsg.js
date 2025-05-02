@@ -264,6 +264,9 @@ async function copyOrdDsg(conn, kwargs = {}, useKwargs = 0) {
       FromOdChr: row.OdChr,
       FromOdNo: row.OdNo,
       FromOdSr: row.OdSr,
+      OdSalPrc: row.OdSalPrc,
+      OdOrdQty: row.quantity,
+
       ...toInputValuesMap, 
       ToOdSr 
 
@@ -352,6 +355,8 @@ function getCopyOrdDsgInsertSelectQuery() {
       case "OdSr": return "@ToOdSr";
       case "OdCrmFixPrcYN": return "''"; // Blank value for validation
       case "OdOmIdNo": return "@ToOdOmIdNo";
+      case "OdSalPrc": return "@OdSalPrc"; 
+      case "OdOrdQty": return "@OdOrdQty"; // Quantity from input
       default: return `[${col}]`; // Take directly from source row
     }
   }).join(', ');
