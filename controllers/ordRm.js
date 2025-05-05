@@ -24,20 +24,23 @@ async function copyOrdRm(conn, kwargs = {}) {
   if (sourceRows.length === 0) return;
 
   let ToOrSrNo = 1;
-
+  let OrdRm=[]
   for (const row of sourceRows) {
     const localInputValuesMap = { ...inputValuesMap, ToOrSrNo };
 
     const rawQuery = getCopyOrdRmQuery(row, localInputValuesMap, inputTypeMap);
-
-    await exeQuery(conn, {
+    
+    let result = await exeQuery(conn, {
       rawQuery,
       inputTypeMap,
       inputValuesMap: localInputValuesMap,
     });
+    OrdRm.push(result[0])
+
 
     ToOrSrNo++;
   }
+  return OrdRm
 }
 
 function getcopyOrdRmInputTypeMap() {
@@ -70,9 +73,12 @@ function getOrdRmColumns() {
 }
 
 function getCopyOrdRmQuery(row, inputValuesMap, inputTypeMap) {
-  const columns = getOrdRmColumns()
+  const columns = getOrdRmColumns();
+
+  // Destination columns
   const insertColumns = columns.map(col => `[${col}]`).join(', ');
-  let insertQuery = '';
+
+  // Values to insert
   const values = columns.map(col => {
     switch (col) {
       case "OrCoCd": return "@ToOdCoCd";
@@ -89,7 +95,11 @@ function getCopyOrdRmQuery(row, inputValuesMap, inputTypeMap) {
         if (row[col] instanceof Date) {
           inputTypeMap[col] = sql.DateTime;
         } else if (typeof row[col] === 'number') {
-          inputTypeMap[col] = sql.Decimal;
+          if (Number.isInteger(row[col])) {
+            inputTypeMap[col] = sql.Int;
+          } else {
+            inputTypeMap[col] = sql.Float;
+          }
         } else {
           inputTypeMap[col] = sql.VarChar;
         }
@@ -97,7 +107,17 @@ function getCopyOrdRmQuery(row, inputValuesMap, inputTypeMap) {
       }
     }
   });
-  insertQuery += `INSERT INTO OrdRm (${insertColumns}) VALUES (${values.join(', ')});\n`;
+
+  // Query with OUTPUT clause to return inserted data
+  const insertQuery = `
+    DECLARE @InsertedData TABLE(${columns.map(col => `[${col}] NVARCHAR(MAX)`).join(', ')});
+
+    INSERT INTO OrdRm (${insertColumns})
+    OUTPUT ${columns.map(col => `INSERTED.[${col}]`).join(', ')} INTO @InsertedData
+    VALUES (${values.join(', ')});
+
+    SELECT * FROM @InsertedData;
+  `;
 
   return insertQuery;
 }

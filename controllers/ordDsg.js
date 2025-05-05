@@ -185,23 +185,8 @@ function getCatalogueBaseInputTypeMap() {
   };
 }
 
-// Copies one or more OrdDsg (design, rm, lab) rows to a target voucher
-async function copyOrdDsg(conn, kwargs = {}, useKwargs = 0, sourceRows=[]) {
-  let FromOdSrList = []
-  let inputValuesMap = {}
-
-  if (useKwargs) {
-    ({ FromOdSrList = [], ...inputValuesMap } = kwargs)
-  } else {
-    ({ FromOdSrList = [], ...inputValuesMap } = conn.req.body)
-  }
+async function getTargetHeaderDetails(conn, inputValuesMap){
   const inputTypeMap = getcopyOrdDsgInputTypeMap();
-
-  if (sourceRows.length == 0){
-    sourceRows = await getSourceRows(conn, FromOdSrList, inputValuesMap)
-  }
-
-  // Fetch target OmIdNo for the destination voucher
   const resultToOmId = await exeQuery(conn, {
     selectClause: `TOP 1 OmIdNo`,
     from: `OrdMst`,
@@ -217,15 +202,15 @@ async function copyOrdDsg(conn, kwargs = {}, useKwargs = 0, sourceRows=[]) {
   });
 
   const ToOdOmIdNo = resultToOmId?.[0]?.OmIdNo;
+  inputValuesMap["ToOdOmIdNo"] = ToOdOmIdNo
   if (!ToOdOmIdNo) {
     throw new Error(`Target OmIdNo (OrdMst) not found for ToOd* values.`);
   }
-  inputValuesMap['ToOdOmIdNo'] = ToOdOmIdNo;
 
+  // Determine starting OdSr for the target voucher
   let ToOdSr = 1;
-
   const resultToOdSr = await exeQuery(conn, {
-    selectClause: `Max(OdSr) as OdSr`,
+    selectClause: `MAX(OdSr) as OdSr`,
     from: `OrdDsg`,
     whereConditions: [
       `OdCoCd = @ToOdCoCd`,
@@ -237,36 +222,86 @@ async function copyOrdDsg(conn, kwargs = {}, useKwargs = 0, sourceRows=[]) {
     inputTypeMap,
     inputValuesMap
   });
+
   if (resultToOdSr?.[0]?.OdSr) {
-    ToOdSr = resultToOdSr?.[0]?.OdSr + 1
+    ToOdSr = resultToOdSr[0].OdSr + 1;
   }
-  for (const row of sourceRows) {
-      const localInputValuesMap = { ...inputValuesMap, ToOdSr };
-      const rawQuery = getCopyOrdDsgQuery(row, inputTypeMap, localInputValuesMap);
-      const result = await exeQuery(conn, {rawQuery, inputTypeMap, inputValuesMap: localInputValuesMap});
-      const ToOdIdNo = result?.[0]?.OdIdNo;
-      childKwargs = {
-        FromOdCoCd: localInputValuesMap.FromOdCoCd,
-        FromOdTc: localInputValuesMap.FromOdTc,
-        FromOdYy: localInputValuesMap.FromOdYy,
-        FromOdChr: localInputValuesMap.FromOdChr,
-        FromOdNo: localInputValuesMap.FromOdNo,
-        FromOdSr: row.OdSr,
-        ToOdCoCd: localInputValuesMap.ToOdCoCd,
-        ToOdTc: localInputValuesMap.ToOdTc,
-        ToOdYy: localInputValuesMap.ToOdYy,
-        ToOdChr: localInputValuesMap.ToOdChr,
-        ToOdNo: localInputValuesMap.ToOdNo,
-        ToOdSr: localInputValuesMap.ToOdSr,
-        ToOdIdNo: ToOdIdNo
-      }
-      if (ToOdIdNo) {
-        await copyOrdRm(conn, childKwargs);
-        await copyOrdLab(conn, childKwargs);
-      }
+  return ToOdSr
+
+}
+
+async function copyOrdDsg(conn, kwargs = {}, useKwargs = 0) {
+  let dsgList = []
+  const inputTypeMap = getcopyOrdDsgInputTypeMap()
+  let params = {}
+  let ToOdCoCd, ToOdTc, ToOdYy, ToOdChr, ToOdNo;
+
+
+  // Extract input based on source (kwargs or req.body)
+  if (useKwargs) {
+    ({ dsgList = [], ToOdCoCd, ToOdTc, ToOdYy, ToOdChr, ToOdNo, ...params } = kwargs);
+  } else {
+    ({ dsgList = [], ToOdCoCd, ToOdTc, ToOdYy, ToOdChr, ToOdNo, ...params } = conn.req.body);
+  }
+
+  toInputValuesMap = {
+    ToOdCoCd,
+    ToOdTc,
+    ToOdYy,
+    ToOdChr,
+    ToOdNo
+  }
+
+  // fetch target header details
+  let ToOdSr = await getTargetHeaderDetails(conn, toInputValuesMap)
+  // Loop through each design row to copy
+  const finalResult = [];
+  for (const row of dsgList) {
+    const localInputValuesMap = {
+      FromOdCoCd: row.OdCoCd,
+      FromOdTc: row.OdTc,
+      FromOdYy: row.OdYy,
+      FromOdChr: row.OdChr,
+      FromOdNo: row.OdNo,
+      FromOdSr: row.OdSr,
+      OdSalPrc: row.OdSalPrc,
+      OdOrdQty: row.quantity,
+      ...toInputValuesMap,
+      ToOdSr
+    };
   
-      ToOdSr++;
+    const rawQuery = getCopyOrdDsgInsertSelectQuery();
+  
+    const result = await exeQuery(conn, {
+      rawQuery,
+      inputTypeMap,
+      inputValuesMap: localInputValuesMap
+    });
+  
+    const OrdDsg = result[0];
+    const ToOdIdNo = OrdDsg?.OdIdNo;
+  
+    if (ToOdIdNo) {
+      const childKwargs = {
+        ...localInputValuesMap,
+        ToOdIdNo
+      };
+  
+      const OrdRm = await copyOrdRm(conn, childKwargs);
+      const OrdLab = await copyOrdLab(conn, childKwargs);
+  
+      OrdDsg.OrdRm = OrdRm || [];
+      OrdDsg.OrdLab = OrdLab || [];
+    } else {
+      OrdDsg.OrdRm = [];
+      OrdDsg.OrdLab = [];
+    }
+  
+    finalResult.push(OrdDsg);
+    ToOdSr++;
   }
+  
+  return finalResult
 }
 
 
@@ -312,12 +347,14 @@ function getOrdDsgColumns() {
   ];
 }
 
-// Contruct Insert Query
-function getCopyOrdDsgQuery(row, inputTypeMap, inputValuesMap) {
-  const columns = getOrdDsgColumns()
+function getCopyOrdDsgInsertSelectQuery() {
+  const columns = getOrdDsgColumns();
+
+  // Destination columns
   const insertColumns = columns.map(col => `[${col}]`).join(', ');
-  let insertQuery = '';
-  const values = columns.map(col => {
+
+  // Source expressions (can be param replacements or source fields)
+  const selectExpressions = columns.map(col => {
     switch (col) {
       case "OdCoCd": return "@ToOdCoCd";
       case "OdTc": return "@ToOdTc";
@@ -325,71 +362,34 @@ function getCopyOrdDsgQuery(row, inputTypeMap, inputValuesMap) {
       case "OdChr": return "@ToOdChr";
       case "OdNo": return "@ToOdNo";
       case "OdSr": return "@ToOdSr";
-      case "OdCrmFixPrcYN": return "''"; //hardcoded crm fixed price to blank as required in validation 
-      // case "OdPrdSeq": return "'HSET'"; //hardcoded as prdseq not matching in test db.
+      case "OdCrmFixPrcYN": return "''"; // Blank value for validation
       case "OdOmIdNo": return "@ToOdOmIdNo";
-      default: {
-        const paramName = `@${col}`;
-        inputValuesMap[col] = row[col];
-        if (row[col] instanceof Date) {
-          inputTypeMap[col] = sql.DateTime;
-        } else if (typeof row[col] === 'number') {
-          if (Number.isInteger(row[col])) {
-            inputTypeMap[col] = sql.Int; 
-          } else {
-            inputTypeMap[col] = sql.Float;
-          }
-        } else {
-          inputTypeMap[col] = sql.VarChar;
-        }
-        return paramName;
-      }
+      case "OdSalPrc": return "@OdSalPrc"; 
+      case "OdOrdQty": return "@OdOrdQty"; // Quantity from input
+      default: return `[${col}]`; // Take directly from source row
     }
-  });
-  insertQuery += `
-                  DECLARE @InsertedOdIdNo TABLE(OdIdNo INT)
-                  INSERT INTO OrdDsg (${insertColumns}) 
-                  OUTPUT INSERTED.OdIdNo INTO @InsertedOdIdNo(OdIdNo)
-                  VALUES (${values.join(', ')})
-                  SELECT OdIdNo FROM @InsertedOdIdNo;
-                `;
+  }).join(', ');
+
+  // Prepare query
+  const insertQuery = `
+    DECLARE @InsertedData TABLE(${columns.map(col => `[${col}] NVARCHAR(MAX)`).join(', ')}, [OdIdNo] INT);
+
+    INSERT INTO OrdDsg (${insertColumns})
+    OUTPUT ${columns.map(col => `INSERTED.[${col}]`).join(', ')}, INSERTED.[OdIdNo] INTO @InsertedData
+    SELECT ${selectExpressions}
+    FROM OrdDsg
+    WHERE OdCoCd = @FromOdCoCd
+      AND OdTc = @FromOdTc
+      AND OdYy = @FromOdYy
+      AND OdChr = @FromOdChr
+      AND OdNo = @FromOdNo
+      AND OdSr = @FromOdSr;
+
+    SELECT * FROM @InsertedData;
+  `;
 
   return insertQuery;
 }
-
-async function getSourceRows(conn, FromOdSrList, inputValuesMap) {
-  const chunkSize = 1000;
-  const allRows = [];
-
-  for (let i = 0; i < FromOdSrList.length; i += chunkSize) {
-    const chunk = FromOdSrList.slice(i, i + chunkSize);
-
-    const inputTypeMap = getcopyOrdDsgInputTypeMap();
-    const whereConditions = [
-      'OdCoCd = @FromOdCoCd',
-      'OdTc = @FromOdTc',
-      'OdYy = @FromOdYy',
-      'OdChr = @FromOdChr',
-      'OdNo = @FromOdNo',
-    ];
-
-    addInClause('OdSr', chunk, 'OdSr', whereConditions);
-    addInputMap('OdSr', chunk, inputTypeMap, inputValuesMap, 'OdSr');
-
-    const chunkRows = await exeQuery(conn, {
-      from: 'OrdDsg',
-      whereConditions,
-      orderByClause: 'OdSr',
-      inputTypeMap,
-      inputValuesMap,
-    });
-
-    allRows.push(...chunkRows);
-  }
-
-  return allRows;
-}
-
 
 function isEmptyValue(val) {
   if (val === null || val === undefined) return true;
@@ -401,34 +401,31 @@ function isEmptyValue(val) {
 }
 
 async function createOrder(conn, kwargs = {}, useKwargs = 0) {
-  const isFromKwargs = !!useKwargs;
-  const FromOdSr = isFromKwargs ? kwargs.OdSr : conn.req.body.OdSr
-  const OdCoCd = isFromKwargs ? kwargs.OdCoCd : conn.req.body.OdCoCd
-  const OdTc =  isFromKwargs ? kwargs.OdTc : conn.req.body.OdTc
-  const OdYy =  isFromKwargs ? kwargs.OdYy : conn.req.body.OdYy
-  const OdChr = isFromKwargs ? kwargs.OdChr : conn.req.body.OdChr
-  const OdNo =  isFromKwargs ? kwargs.OdNo : conn.req.body.OdNo
 
-
-  const ToOdNo = conn.req.userInfo?.CsCd;
-  if (!ToOdNo) {
-    throw new Error("Missing user session code (ToOdNo).");
+  if (useKwargs) {
+    ({ dsgList = [] } = kwargs); // <-- Note the parentheses
+  } else {
+    ({ dsgList = [] } = conn.req.body); // <-- Note the parentheses
   }
+
+
+  const OmCmCd = 5; //customer
+
+  //target header details
   const inputValuesMap = {
-    FromOdCoCd: OdCoCd,
-    FromOdTc: OdTc,
-    FromOdYy: OdYy,
-    FromOdChr: OdChr,
-    FromOdNo: OdNo,
-    FromOdSrList: [FromOdSr],
-    ToOdCoCd: 'ZZZ',
-    ToOdTc: 'QT',
-    ToOdYy: OdYy,
-    ToOdChr: 'SO',
-    ToOdNo: ToOdNo,
+    dsgList,
+    OmCmCd,
+    ToOdCoCd: 'MW',
+    ToOdTc: 'SO',
+    ToOdYy: 22,
+    ToOdChr: 'REG',
+    ToOdNo: 1264
   };
-  await copyOrdDsg(conn, inputValuesMap, 1);
-  return `Order Created Successfully.`;
+  let data = await copyOrdDsg(conn, inputValuesMap, 1);
+  return {
+    msg: `Order Created Successfully.`,
+    data:data
+  }
 }
 
 
