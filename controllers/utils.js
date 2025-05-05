@@ -85,4 +85,77 @@ const getDsgConfig = async (conn) => {
     return { doctype:"", docname:"",filters:filters };
 }
 
-module.exports = { getCatalogueFilters,getDsgConfig };
+//static response api for development purpose
+async function getComponents(req, res, next){
+  const { page_type } = conn.req.query;
+  let response = {}
+
+  if(page_type == 'Home Page'){
+    response = {
+      "message": {
+          "msg": "success",
+          "data": {
+              "page_name": "Home Page",
+              "page_url": "",
+              "from_date": "2025-01-10",
+              "to_date": "2025-01-24",
+              "page_type": "Home Page",
+              "product_category_page_layout": "",
+              "filters_component": "",
+              "product_card_components": "",
+              "magnified_image_component": null,
+              "product_information_component": null,
+              "associated_component": [
+                  {
+                      "component": "HomeCollectionBanners",
+                      "component_name": "HomeCollectionBanners",
+                      "section_name": "CollectionSection",
+                      "page_name": "home-page",
+                      "image": "",
+                      "properties": null
+                  }
+              ]
+          },
+      }
+    }
+  }
+  else if(page_type == 'Product Category Page'){
+    response = {
+      "message": {
+          "msg": "success",
+          "data": {
+              "page_name": "Product Category Page",
+              "page_url": "",
+              "from_date": "2025-01-09",
+              "to_date": "2025-01-11",
+              "page_type": "Product Category Page",
+              "product_category_page_layout": "Default Layout",
+              "filters_component": "Fallback Filters",
+              "product_card_components": "Fallback Cards",
+              "magnified_image_component": null,
+              "product_information_component": null,
+              "top_section_component": [
+                  {
+                  }
+              ],
+              "bottom_section_component": [
+                  {}
+              ]
+          },
+      }
+    }
+  }
+  else{
+    response = {
+        "message": {
+            "msg": "error",
+            "error": "Invalid page_type specified.",
+            "exec_time": "0.0052 seconds"
+        }
+    }
+  }
+  return res.json(response) 
+}
+
+
+module.exports = { getCatalogueFilters,getDsgConfig, getComponents };
