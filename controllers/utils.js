@@ -87,7 +87,7 @@ const getDsgConfig = async (conn) => {
 
 //static response api for development purpose
 async function getComponents(req, res, next){
-  const { page_type } = conn.req.query;
+  const { page_type } = req.query;
   let response = {}
 
   if(page_type == 'Home Page'){
