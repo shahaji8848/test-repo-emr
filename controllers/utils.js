@@ -21,7 +21,7 @@ const getCatalogueFilters = async (conn) => {
       });
 
     const dia_wt = await getYParamRecords(conn,{
-        selectClause: 'DISTINCT PMCd,PNum,PNum1 PDesc',
+        selectClause: 'DISTINCT PMCd,PNum,PNum1 ,PDesc',
         whereConditions: ['PTyp = @PTyp'],
         inputValuesMap: { PTyp: 'yDiaWt' },
       });
@@ -33,11 +33,11 @@ const getCatalogueFilters = async (conn) => {
       });
   
     const filters = [
-      { section: "design_category", values: design_category },
-      { section: "sub_category", values: sub_category },
-      { section: "price_range", values: price_range },
-      { section: "dia_wt", values: dia_wt },
-      { section: "gross_wt", values: gross_wt },
+      { section: "Category", values: design_category },
+      { section: "Sub Category", values: sub_category },
+      { section: "Price", values: price_range },
+      { section: "Diamond Weight", values: dia_wt },
+      { section: "Gross Weight", values: gross_wt },
     ];
   
     return { doctype:"", docname:"",filters:filters };
