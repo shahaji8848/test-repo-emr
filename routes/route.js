@@ -3,7 +3,7 @@ const router = express.Router();
 const {transactionalControllerWrapper} = require('../utils/controllerWrapper');
 const { authenticate } = require("../middleware/auth");
 const {login} = require("../controllers/auth")
-const {getCatalogueFilters,getDsgConfig} = require("../controllers/utils")
+const {getCatalogueFilters, getDsgConfig, getComponents} = require("../controllers/utils")
 const {getDsgCollections} = require("../controllers/dsgPrm")
 const {getCatalogues, createOrder} = require("../controllers/ordDsg")
 
@@ -13,6 +13,7 @@ router.get("/getDsgConfig", authenticate, transactionalControllerWrapper(getDsgC
 router.get("/getDsgCollections", authenticate, transactionalControllerWrapper(getDsgCollections));
 router.get("/getCatalogues", authenticate, transactionalControllerWrapper(getCatalogues));
 router.get("/createOrder", authenticate, transactionalControllerWrapper(createOrder));
+router.get("/getComponents", getComponents)
 
 router.post("/login", transactionalControllerWrapper(login));
 
