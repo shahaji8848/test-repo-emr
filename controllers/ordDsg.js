@@ -65,7 +65,7 @@ function getCatalogueJoinTables(kwargs, inputTypeMap, inputValuesMap) {
 
 // Helper to create WHERE conditions dynamically
 function getCatalogueWhereConditions(kwargs = {}, inputTypeMap, inputValuesMap) {
-  const fields = ['DmCtg', 'OrRmSCtg', 'SalPrc', 'DpCd'];
+  const fields = ['DmCtg', 'DmSalCtg', 'SalPrc', 'DpCd'];
   const conditions = [ `OmCmCd = 'ZSELF'`, `OdTc = 'PL'`]; // Default filters
   
   fields.forEach((field) => {
@@ -74,7 +74,17 @@ function getCatalogueWhereConditions(kwargs = {}, inputTypeMap, inputValuesMap) 
 
     if (field === 'SalPrc') {
       addRangeConditions(field, value, inputTypeMap, inputValuesMap, conditions);
-    } else {
+    } else if (field === 'DmSalCtg'){
+      if (value.length){
+        const paramNames = value.map((_, i) => `@${field}_${i}`);
+        conditions.push(`(
+          DmSalCtg IN (${paramNames}) OR
+          DmSalCtg2 IN (${paramNames}) OR
+          DmSalCtg3 IN (${paramNames})
+        )`);
+        addInputMap(field, value, inputTypeMap, inputValuesMap, field);
+      }
+    }else {
       addInClause(field, value, field, conditions);
       addInputMap(field, value, inputTypeMap, inputValuesMap, field);
     }
