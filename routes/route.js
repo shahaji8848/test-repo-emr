@@ -11,11 +11,11 @@ const {getCatalogues, createOrder} = require("../controllers/ordDsg")
 router.get("/getCatalogueFilters", authenticate, transactionalControllerWrapper(getCatalogueFilters));
 router.get("/getDsgConfig", authenticate, transactionalControllerWrapper(getDsgConfig));
 router.get("/getDsgCollections", authenticate, transactionalControllerWrapper(getDsgCollections));
-router.get("/getCatalogues", authenticate, transactionalControllerWrapper(getCatalogues));
 router.get("/getComponents", getComponents);
 
 
 router.post("/login", transactionalControllerWrapper(login));
+router.post("/getCatalogues", authenticate, transactionalControllerWrapper(getCatalogues));
 router.post("/createOrder",authenticate, transactionalControllerWrapper(createOrder));
 
 // Catch-all route for invalid API endpoints
