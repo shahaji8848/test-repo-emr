@@ -158,4 +158,25 @@ async function getComponents(req, res, next){
 }
 
 
-module.exports = { getCatalogueFilterMasters, getDsgConfig, getComponents };
+//static response api for development purpose
+async function settings(req, res, next){
+  return res.json({"data": {
+        "name": "Settings",
+        "owner": "Administrator",
+        "modified": "",
+        "modified_by": "Administrator",
+        "docstatus": 0,
+        "idx": "0",
+        "enable_user_based_menu": 1,
+        "variant_type": "Image",
+        "header_component": "Fallback Navbar",
+        "font_family": "Nunito",
+        "show_variant_on_product_card": 1,
+        "variant_attribute_on_product_card": "",
+        "footer_component": "Fallback Footer",
+        "summit_screens_error_message": []
+    }}) 
+}
+
+
+module.exports = { getCatalogueFilterMasters, getDsgConfig, getComponents, settings };
