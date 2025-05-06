@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const {transactionalControllerWrapper} = require('../utils/controllerWrapper');
-const { authenticate } = require("../middleware/auth");
+const { authenticate } = require("../middlewares/auth");
 const {login} = require("../controllers/auth")
 const {getCatalogueFilters, getDsgConfig, getComponents} = require("../controllers/utils")
 const {getDsgCollections} = require("../controllers/dsgPrm")
