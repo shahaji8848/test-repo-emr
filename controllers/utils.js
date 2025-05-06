@@ -1,6 +1,6 @@
 const { getYParamRecords } = require("./yParam");
 
-const getCatalogueFilters = async (conn) => {
+const getCatalogueFilterMasters = async (conn) => {
     
     const design_category = await getYParamRecords(conn, {
         selectClause: 'DISTINCT PMCd, PDesc',
@@ -158,4 +158,4 @@ async function getComponents(req, res, next){
 }
 
 
-module.exports = { getCatalogueFilters,getDsgConfig, getComponents };
+module.exports = { getCatalogueFilterMasters, getDsgConfig, getComponents };
