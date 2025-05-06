@@ -96,7 +96,7 @@ function getCatalogueWhereConditions(kwargs = {}, inputTypeMap, inputValuesMap) 
 // Helper to create HAVING conditions (on aggregated values)
 function getCatalogueHavingConditions(kwargs, inputTypeMap, inputValuesMap) {
   const {
-    GWt = [],
+    GrWt = [],
     DiaWt = [],
     CsWt = [],
     CsAvl = 'All'
@@ -104,7 +104,7 @@ function getCatalogueHavingConditions(kwargs, inputTypeMap, inputValuesMap) {
 
   const conditions = [];
 
-  addRangeConditions('GrWt', GWt, inputTypeMap, inputValuesMap, conditions);
+  addRangeConditions('GrWt', GrWt, inputTypeMap, inputValuesMap, conditions);
   addRangeConditions('DiaWt', DiaWt, inputTypeMap, inputValuesMap, conditions);
   addRangeConditions('CsWt', CsWt, inputTypeMap, inputValuesMap, conditions);
 
@@ -169,7 +169,7 @@ function addRangeConditions(alias, ranges, inputTypeMap, inputValuesMap, conditi
 function getExpr(alias) {
   const map = {
     SalPrc: `OdSalPrc`,
-    GWt: `ROUND(SUM(CASE WHEN Rm.OrRmCtg IN ('D', 'C') THEN Rm.OrWt / 5 ELSE Rm.OrWt END), 4)`,
+    GrWt: `ROUND(SUM(CASE WHEN Rm.OrRmCtg IN ('D', 'C') THEN Rm.OrWt / 5 ELSE Rm.OrWt END), 4)`,
     DiaWt: `ROUND(SUM(CASE WHEN Rm.OrRmCtg = 'D' THEN Rm.OrWt ELSE 0 END), 4)`,
     CsWt: `ROUND(SUM(CASE WHEN Rm.OrRmCtg = 'C' THEN Rm.OrWt ELSE 0 END), 4)`,
   };
@@ -215,7 +215,7 @@ function getCatalogueBaseInputTypeMap() {
     DmCtg: sql.VarChar(5),
     DmSalCtg: sql.VarChar(5),
     SalPrc: sql.Float,
-    GWt: sql.Float,
+    GrWt: sql.Float,
     DiaWt: sql.Float,
     CsAvl: sql.VarChar(3),
   };
