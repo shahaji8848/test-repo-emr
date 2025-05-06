@@ -67,14 +67,14 @@ function getCatalogueJoinTables(kwargs, inputTypeMap, inputValuesMap) {
 
 // Helper to create WHERE conditions dynamically
 function getCatalogueWhereConditions(kwargs = {}, inputTypeMap, inputValuesMap) {
-  const fields = ['DmCtg', 'DmSalCtg', 'SalPrc'];
+  const fields = ['DmCtg', 'DmSalCtg', 'OdSalPrc'];
   const conditions = [ `OmCmCd = 'ZSELF'`, `OdTc = 'PL'`]; // Default filters
   
   fields.forEach((field) => {
     const value = kwargs[field];
-    if (!value) return;
+    if (!value && value !== false) return;
 
-    if (field === 'SalPrc') {
+    if (field === 'OdSalPrc') {
       addRangeConditions(field, value, inputTypeMap, inputValuesMap, conditions);
     } else if (field === 'DmSalCtg'){
       if (value.length){
@@ -96,26 +96,24 @@ function getCatalogueWhereConditions(kwargs = {}, inputTypeMap, inputValuesMap) 
 }
 
 // Helper to create HAVING conditions (on aggregated values)
-function getCatalogueHavingConditions(kwargs, inputTypeMap, inputValuesMap) {
-  const {
-    GrWt = [],
-    DiaWt = [],
-    CsWt = [],
-    CsAvl = 'All'
-  } = kwargs;
-
+function getCatalogueHavingConditions(kwargs = {}, inputTypeMap, inputValuesMap) {
+  const fields = ['GrWt', 'DiaWt', 'CsWt', 'CsAvl'];
   const conditions = [];
 
-  addRangeConditions('GrWt', GrWt, inputTypeMap, inputValuesMap, conditions);
-  addRangeConditions('DiaWt', DiaWt, inputTypeMap, inputValuesMap, conditions);
-  addRangeConditions('CsWt', CsWt, inputTypeMap, inputValuesMap, conditions);
+  fields.forEach((field) => {
+    const value = kwargs[field];
+    if (!value && value !== false) return;
 
-  // Handle CsAvl filter
-  if (CsAvl === 'Yes') {
-    conditions.push(`${getExpr('CsWt')} != 0`);
-  } else if (CsAvl === 'No') {
-    conditions.push(`${getExpr('CsWt')} = 0`);
-  }
+    if (field === 'CsAvl') {
+      if (value === 'Yes') {
+        conditions.push(`${getExpr('CsWt')} != 0`);
+      } else if (value === 'No') {
+        conditions.push(`${getExpr('CsWt')} = 0`);
+      }
+    } else {
+      addRangeConditions(field, value, inputTypeMap, inputValuesMap, conditions);
+    }
+  });
 
   return conditions;
 }
@@ -140,8 +138,8 @@ function parseRangeString(rangeStr) {
 }
 
 // Helper to add BETWEEN clauses for filters
-function addRangeConditions(alias, ranges, inputTypeMap, inputValuesMap, conditions) {
-  const expr = getExpr(alias);
+function addRangeConditions(field, ranges, inputTypeMap, inputValuesMap, conditions) {
+  const expr = getExpr(field) || field;
   const subConditions = [];
 
   if(expr){
@@ -154,13 +152,13 @@ function addRangeConditions(alias, ranges, inputTypeMap, inputValuesMap, conditi
         throw new Error(`Invalid range at index ${idx}: must be [min, max] array or "min-max" string.`);
       }
       const [from, to] = range;
-      const fromKey = `$from${alias}_${idx}`;
-      const toKey = `$to${alias}_${idx}`;
+      const fromKey = `$from${field}_${idx}`;
+      const toKey = `$to${field}_${idx}`;
   
       subConditions.push(`(${expr} BETWEEN @${fromKey} AND @${toKey})`);
   
-      addInputMap(fromKey, from, inputTypeMap, inputValuesMap, alias)
-      addInputMap(toKey, to, inputTypeMap, inputValuesMap, alias)
+      addInputMap(fromKey, from, inputTypeMap, inputValuesMap, field)
+      addInputMap(toKey, to, inputTypeMap, inputValuesMap, field)
     });
   }
 
@@ -169,15 +167,14 @@ function addRangeConditions(alias, ranges, inputTypeMap, inputValuesMap, conditi
   }
 }
 
-// Maps alias to corresponding SQL expression
-function getExpr(alias) {
+// Maps field to corresponding SQL expression
+function getExpr(field) {
   const map = {
-    SalPrc: `OdSalPrc`,
     GrWt: `ROUND(SUM(CASE WHEN Rm.OrRmCtg IN ('D', 'C') THEN Rm.OrWt / 5 ELSE Rm.OrWt END), 4)`,
     DiaWt: `ROUND(SUM(CASE WHEN Rm.OrRmCtg = 'D' THEN Rm.OrWt ELSE 0 END), 4)`,
     CsWt: `ROUND(SUM(CASE WHEN Rm.OrRmCtg = 'C' THEN Rm.OrWt ELSE 0 END), 4)`,
   };
-  return map[alias];
+  return map[field];
 }
 
 
@@ -218,7 +215,7 @@ function getCatalogueBaseInputTypeMap() {
     DpCd: sql.VarChar(16),
     DmCtg: sql.VarChar(5),
     DmSalCtg: sql.VarChar(5),
-    SalPrc: sql.Float,
+    OdSalPrc: sql.Float,
     GrWt: sql.Float,
     DiaWt: sql.Float,
     CsAvl: sql.VarChar(3),
