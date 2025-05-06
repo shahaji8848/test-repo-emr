@@ -3,12 +3,12 @@ const router = express.Router();
 const {transactionalControllerWrapper} = require('../utils/controllerWrapper');
 const { authenticate } = require("../middlewares/auth");
 const {login} = require("../controllers/auth")
-const {getCatalogueFilters, getDsgConfig, getComponents} = require("../controllers/utils")
+const {getCatalogueFilterMasters, getDsgConfig, getComponents} = require("../controllers/utils")
 const {getDsgCollections} = require("../controllers/dsgPrm")
 const {getCatalogues, createOrder} = require("../controllers/ordDsg")
 
 // Valid routes
-router.get("/getCatalogueFilters", authenticate, transactionalControllerWrapper(getCatalogueFilters));
+router.get("/getCatalogueFilterMasters", authenticate, transactionalControllerWrapper(getCatalogueFilterMasters));
 router.get("/getDsgConfig", authenticate, transactionalControllerWrapper(getDsgConfig));
 router.get("/getDsgCollections", authenticate, transactionalControllerWrapper(getDsgCollections));
 router.get("/getComponents", getComponents);
