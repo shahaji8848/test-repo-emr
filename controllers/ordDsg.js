@@ -18,7 +18,7 @@ async function getCatalogues(conn){
   }
 
   // Generate JOIN tables based on filters
-  const joinTables = getCatalogueJoinTables(kwargs);
+  const joinTables = getCatalogueJoinTables(kwargs, inputTypeMap, inputValuesMap);
 
   // Build dynamic WHERE conditions
   const whereConditions = getCatalogueWhereConditions(kwargs, inputTypeMap, inputValuesMap);
@@ -144,23 +144,25 @@ function addRangeConditions(alias, ranges, inputTypeMap, inputValuesMap, conditi
   const expr = getExpr(alias);
   const subConditions = [];
 
-  ranges.forEach((range, idx) => {
-    if (typeof range === 'string') {
-      range = parseRangeString(range);
-    }
-
-    if (!Array.isArray(range) || range.length !== 2) {
-      throw new Error(`Invalid range at index ${idx}: must be [min, max] array or "min-max" string.`);
-    }
-    const [from, to] = range;
-    const fromKey = `$from${alias}_${idx}`;
-    const toKey = `$to${alias}_${idx}`;
-
-    subConditions.push(`(${expr} BETWEEN @${fromKey} AND @${toKey})`);
-
-    addInputMap(fromKey, from, inputTypeMap, inputValuesMap, alias)
-    addInputMap(toKey, to, inputTypeMap, inputValuesMap, alias)
-  });
+  if(expr){
+    ranges.forEach((range, idx) => {
+      if (typeof range === 'string') {
+        range = parseRangeString(range);
+      }
+  
+      if (!Array.isArray(range) || range.length !== 2) {
+        throw new Error(`Invalid range at index ${idx}: must be [min, max] array or "min-max" string.`);
+      }
+      const [from, to] = range;
+      const fromKey = `$from${alias}_${idx}`;
+      const toKey = `$to${alias}_${idx}`;
+  
+      subConditions.push(`(${expr} BETWEEN @${fromKey} AND @${toKey})`);
+  
+      addInputMap(fromKey, from, inputTypeMap, inputValuesMap, alias)
+      addInputMap(toKey, to, inputTypeMap, inputValuesMap, alias)
+    });
+  }
 
   if (subConditions.length) {
     conditions.push(`(${subConditions.join(' OR ')})`);
