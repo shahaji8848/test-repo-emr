@@ -28,7 +28,7 @@ async function getCatalogues(conn){
 
   // SELECT clause with calculated weights using conditional aggregation
   const selectClause = `OdCoCd, OdTc, OdYy, OdChr, OdNo, OdSr, OdDmCd, CAST(ROUND(OdSalPrc, 4) AS DECIMAL(18,4)) as OdSalPrc, OdKt,
-    CAST(ROUND(SUM(CASE WHEN Rm.OrRmCtg IN ('D', 'C') THEN Rm.OrWt / 5 ELSE Rm.OrWt END), 4) AS DECIMAL(18,4)) AS GrossWt,
+    CAST(ROUND(SUM(CASE WHEN Rm.OrRmCtg IN ('D', 'C') THEN Rm.OrWt / 5 ELSE Rm.OrWt END), 4) AS DECIMAL(18,4)) AS GrWt,
     CAST(ROUND(SUM(CASE WHEN Rm.OrRmCtg = 'D' THEN Rm.OrWt ELSE 0 END), 4) AS DECIMAL(18,4)) AS DiaWt,
     CAST(ROUND(SUM(CASE WHEN Rm.OrRmCtg = 'C' THEN Rm.OrWt ELSE 0 END), 4) AS DECIMAL(18,4)) AS CsWt
   `;
@@ -96,7 +96,7 @@ function getCatalogueWhereConditions(kwargs = {}, inputTypeMap, inputValuesMap) 
 // Helper to create HAVING conditions (on aggregated values)
 function getCatalogueHavingConditions(kwargs, inputTypeMap, inputValuesMap) {
   const {
-    GWt = [],
+    GrWt = [],
     DiaWt = [],
     CsWt = [],
     CsAvl = 'All'
@@ -104,7 +104,7 @@ function getCatalogueHavingConditions(kwargs, inputTypeMap, inputValuesMap) {
 
   const conditions = [];
 
-  addRangeConditions('GWt', GWt, inputTypeMap, inputValuesMap, conditions);
+  addRangeConditions('GrWt', GrWt, inputTypeMap, inputValuesMap, conditions);
   addRangeConditions('DiaWt', DiaWt, inputTypeMap, inputValuesMap, conditions);
   addRangeConditions('CsWt', CsWt, inputTypeMap, inputValuesMap, conditions);
 
@@ -118,12 +118,38 @@ function getCatalogueHavingConditions(kwargs, inputTypeMap, inputValuesMap) {
   return conditions;
 }
 
+function parseRangeString(rangeStr) {
+  if (typeof rangeStr !== 'string') {
+    throw new Error(`Invalid range: not a string. Got: ${rangeStr}`);
+  }
+
+  const trimmed = rangeStr.trim();
+
+  // Match strict "min-max" format with optional decimals
+  const match = /^(\d+(\.\d+)?)\s*-\s*(\d+(\.\d+)?)$/.exec(trimmed);
+  if (!match) {
+    throw new Error(`Invalid range format: "${rangeStr}". Expected format "min-max", e.g. "0-100"`);
+  }
+
+  const min = parseFloat(match[1]);
+  const max = parseFloat(match[3]);
+
+  return [min, max];
+}
+
 // Helper to add BETWEEN clauses for weight filters
 function addRangeConditions(alias, ranges, inputTypeMap, inputValuesMap, conditions) {
   const expr = getExpr(alias);
   const subConditions = [];
 
   ranges.forEach((range, idx) => {
+    if (typeof range === 'string') {
+      range = parseRangeString(range);
+    }
+
+    if (!Array.isArray(range) || range.length !== 2) {
+      throw new Error(`Invalid range at index ${idx}: must be [min, max] array or "min-max" string.`);
+    }
     const [from, to] = range;
     const fromKey = `$from${alias}_${idx}`;
     const toKey = `$to${alias}_${idx}`;
@@ -143,7 +169,7 @@ function addRangeConditions(alias, ranges, inputTypeMap, inputValuesMap, conditi
 function getExpr(alias) {
   const map = {
     SalPrc: `OdSalPrc`,
-    GWt: `ROUND(SUM(CASE WHEN Rm.OrRmCtg IN ('D', 'C') THEN Rm.OrWt / 5 ELSE Rm.OrWt END), 4)`,
+    GrWt: `ROUND(SUM(CASE WHEN Rm.OrRmCtg IN ('D', 'C') THEN Rm.OrWt / 5 ELSE Rm.OrWt END), 4)`,
     DiaWt: `ROUND(SUM(CASE WHEN Rm.OrRmCtg = 'D' THEN Rm.OrWt ELSE 0 END), 4)`,
     CsWt: `ROUND(SUM(CASE WHEN Rm.OrRmCtg = 'C' THEN Rm.OrWt ELSE 0 END), 4)`,
   };
@@ -187,9 +213,9 @@ function getCatalogueBaseInputTypeMap() {
   return {
     DpCd: sql.VarChar(16),
     DmCtg: sql.VarChar(5),
-    OrRmSCtg: sql.VarChar(5),
+    DmSalCtg: sql.VarChar(5),
     SalPrc: sql.Float,
-    GWt: sql.Float,
+    GrWt: sql.Float,
     DiaWt: sql.Float,
     CsAvl: sql.VarChar(3),
   };
