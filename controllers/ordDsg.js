@@ -139,7 +139,7 @@ function parseRangeString(rangeStr) {
   return [min, max];
 }
 
-// Helper to add BETWEEN clauses for weight filters
+// Helper to add BETWEEN clauses for filters
 function addRangeConditions(alias, ranges, inputTypeMap, inputValuesMap, conditions) {
   const expr = getExpr(alias);
   const subConditions = [];
@@ -169,7 +169,7 @@ function addRangeConditions(alias, ranges, inputTypeMap, inputValuesMap, conditi
   }
 }
 
-// Maps alias to corresponding aggregate SQL expression
+// Maps alias to corresponding SQL expression
 function getExpr(alias) {
   const map = {
     SalPrc: `OdSalPrc`,
