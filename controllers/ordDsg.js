@@ -16,9 +16,8 @@ async function getCatalogues(conn){
   if (!kwargs.DpCd || typeof kwargs.DpCd !== 'string') {
     throw new Error('Invalid Collection');
   }
-
   // Generate JOIN tables based on filters
-  const joinTables = getCatalogueJoinTables(kwargs, inputTypeMap, inputValuesMap);
+  const joinTables = getCatalogueJoinTables(kwargs);
 
   // Build dynamic WHERE conditions
   const whereConditions = getCatalogueWhereConditions(kwargs, inputTypeMap, inputValuesMap);
@@ -47,14 +46,12 @@ async function getCatalogues(conn){
 };
 
 // Helper to generate JOIN clauses based on request filters
-function getCatalogueJoinTables(kwargs, inputTypeMap, inputValuesMap) {
+function getCatalogueJoinTables(kwargs) {
   const joins = [
     `OrdMst ON OdCoCd = OmCoCd AND OdTc = OmTc AND OdYy = OmYy AND OdChr = OmChr AND OdNo = OmNo`,
     `OrdRm Rm ON Rm.OrCoCd = OdCoCd AND Rm.OrTc = OdTc AND Rm.OrYy = OdYy AND Rm.OrChr = OdChr AND Rm.OrNo = OdNo AND Rm.OrSr = OdSr`,
     `DsgPrm ON DpTyp = 'CAT' AND DpDmCd = OdDmCd AND DpCd = @DpCd`
   ];
-  addInClause('DpCd', kwargs.DpCd, 'DpCd', conditions);
-  addInputMap('DpCd', kwargs.DpCd, inputTypeMap, inputValuesMap, 'DpCd');
 
   // Add DsgMst join if category or sales category filters are applied
   if (kwargs.DmCtg?.length || kwargs.DmSalCtg?.length) {
@@ -69,6 +66,8 @@ function getCatalogueJoinTables(kwargs, inputTypeMap, inputValuesMap) {
 function getCatalogueWhereConditions(kwargs = {}, inputTypeMap, inputValuesMap) {
   const fields = ['DmCtg', 'DmSalCtg', 'OdSalPrc'];
   const conditions = [ `OmCmCd = 'ZSELF'`, `OdTc = 'PL'`]; // Default filters
+  addInClause('DpCd', kwargs.DpCd, 'DpCd', conditions);
+  addInputMap('DpCd', kwargs.DpCd, inputTypeMap, inputValuesMap, 'DpCd');
   
   fields.forEach((field) => {
     const value = kwargs[field];
