@@ -616,8 +616,8 @@ function getVoucherTypeMap(){
 }
 
 async function getCatalogueDetails(conn){
-  const { VchNo,  ...Params } = conn.req.query;
-  const [OdCoCd,OdTc, OdYyStr, OdChr, OdNoStr, OdSrStr] = VchNo.split('-');
+  const { item,  ...Params } = conn.req.query;
+  const [OdCoCd,OdTc, OdYyStr, OdChr, OdNoStr, OdSrStr] = item.split('-');
 
   const OdYy = parseInt(OdYyStr, 10);
   const OdNo = parseInt(OdNoStr, 10);
@@ -654,7 +654,7 @@ async function getCatalogueDetails(conn){
     CAST(ROUND(SUM(CASE WHEN Rm.OrRmCtg = 'C' THEN Rm.OrWt ELSE 0 END), 4) AS DECIMAL(18,4)) AS CsWt
   `;
 
-  return await exeQuery(conn, {
+  let CatalogueData = await exeQuery(conn, {
     selectClause,
     from: 'OrdDsg',
     whereConditions,
@@ -664,6 +664,7 @@ async function getCatalogueDetails(conn){
     inputTypeMap,
     inputValuesMap
   });
+  return CatalogueData[0] || {};
 };
 
 
