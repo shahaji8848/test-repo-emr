@@ -615,4 +615,56 @@ function getVoucherTypeMap(){
   return voucherTypeMap;
 }
 
-module.exports = { getCatalogues, copyOrdDsg, moveDsg, delOrdDsg, createOrder };
+async function getCatalogueDetails(conn){
+  const { VchNo,  ...Params } = conn.req.query;
+  const [OdCoCd,OdTc, OdYyStr, OdChr, OdNoStr, OdSrStr] = VchNo.split('-');
+
+  const OdYy = parseInt(OdYyStr, 10);
+  const OdNo = parseInt(OdNoStr, 10);
+  const OdSr = parseInt(OdSrStr, 10);
+  
+  const inputTypeMap = {
+    'OdCoCd': sql.VarChar(5),
+    'OdTc': sql.VarChar(5),
+    'OdYy': sql.Int,
+    'OdChr': sql.VarChar(5),
+    'OdNo': sql.Int,
+    'OdSr': sql.Int,
+  };     
+  const inputValuesMap = {OdCoCd, OdTc, OdYy, OdChr, OdNo, OdSr}; 
+
+  const whereConditions = [
+    `OdCoCd = @OdCoCd`,
+    `OdTc = @OdTc`,
+    `OdYy = @OdYy`,
+    `OdChr = @OdChr`,
+    `OdNo = @OdNo`,
+    `OdSr = @OdSr`
+  ];
+
+  const joinTables = [
+    `OrdMst ON OdCoCd = OmCoCd AND OdTc = OmTc AND OdYy = OmYy AND OdChr = OmChr AND OdNo = OmNo`,
+    `OrdRm Rm ON Rm.OrCoCd = OdCoCd AND Rm.OrTc = OdTc AND Rm.OrYy = OdYy AND Rm.OrChr = OdChr AND Rm.OrNo = OdNo AND Rm.OrSr = OdSr`,
+  ];
+
+  // SELECT clause with calculated weights using conditional aggregation
+  const selectClause = `OdCoCd, OdTc, OdYy, OdChr, OdNo, OdSr, OdDmCd, CAST(ROUND(OdSalPrc, 4) AS DECIMAL(18,4)) as OdSalPrc, OdKt,
+    CAST(ROUND(SUM(CASE WHEN Rm.OrRmCtg IN ('D', 'C') THEN Rm.OrWt / 5 ELSE Rm.OrWt END), 4) AS DECIMAL(18,4)) AS GrWt,
+    CAST(ROUND(SUM(CASE WHEN Rm.OrRmCtg = 'D' THEN Rm.OrWt ELSE 0 END), 4) AS DECIMAL(18,4)) AS DiaWt,
+    CAST(ROUND(SUM(CASE WHEN Rm.OrRmCtg = 'C' THEN Rm.OrWt ELSE 0 END), 4) AS DECIMAL(18,4)) AS CsWt
+  `;
+
+  return await exeQuery(conn, {
+    selectClause,
+    from: 'OrdDsg',
+    whereConditions,
+    joinTables,
+    groupByClause: 'OdCoCd, OdTc, OdYy, OdChr, OdNo, OdSr, OdDmCd, OdSalPrc, OdKt',
+    orderByClause: `OdSalPrc`,
+    inputTypeMap,
+    inputValuesMap
+  });
+};
+
+
+module.exports = { getCatalogues, copyOrdDsg, moveDsg, delOrdDsg, createOrder,getCatalogueDetails };
