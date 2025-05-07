@@ -145,7 +145,7 @@ async function getComponents(req, res, next){
       }
     }
   }
-  else if(page_type == ' Product Page'){
+  else if(page_type == 'Product Page'){
     response ={
     "message": {
         "msg": "success",
