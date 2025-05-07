@@ -145,6 +145,59 @@ async function getComponents(req, res, next){
       }
     }
   }
+  else if(page_type == ' Product Page'){
+    response ={
+    "message": {
+        "msg": "success",
+        "data": {
+            "page_name": "Product Page",
+            "page_url": "",
+            "from_date": "",
+            "to_date": "",
+            "page_type": "Product Page",
+            "product_category_page_layout": "",
+            "filters_component": "",
+            "product_card_components": "",
+            "magnified_image_component": "Image Thumbnails at the Bottom",
+            "product_information_component": "Fallback Product Information",
+            "top_section_component": [
+            ],
+            "bottom_section_component": [
+            ]
+        },
+    }
+  }
+
+}
+else if(page_type == 'Cart Page'){
+  response ={
+      "message": {
+          "msg": "success",
+          "data": {
+              "page_name": "Cart Page",
+              "page_url": "",
+              "from_date": "",
+              "to_date": "",
+              "page_type": "Cart Page",
+              "product_category_page_layout": "",
+              "filters_component": "",
+              "product_card_components": "",
+              "magnified_image_component": null,
+              "product_information_component": null,
+              "associated_component": [
+                  {
+                      "component": "FallbackCartComponent",
+                      "component_name": "FallbackCartComponent",
+                      "section_name": "PersonalisedCart",
+                      "page_name": "cart-page",
+                      "properties": null
+                  }
+              ]
+          },
+          "exec_time": "0.0138 seconds"
+      }
+  }
+}
   else{
     response = {
         "message": {
