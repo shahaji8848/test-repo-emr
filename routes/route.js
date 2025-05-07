@@ -5,7 +5,7 @@ const { authenticate } = require("../middlewares/auth");
 const {login} = require("../controllers/auth")
 const {getCatalogueFilterMasters, getDsgConfig, getComponents, settings} = require("../controllers/utils")
 const {getDsgCollections} = require("../controllers/dsgPrm")
-const {getCatalogues, createOrder} = require("../controllers/ordDsg")
+const {getCatalogues, createOrder,getCatalogueDetails} = require("../controllers/ordDsg")
 
 // Valid routes
 router.get("/getCatalogueFilterMasters", authenticate, transactionalControllerWrapper(getCatalogueFilterMasters));
@@ -13,6 +13,7 @@ router.get("/getDsgConfig", authenticate, transactionalControllerWrapper(getDsgC
 router.get("/getDsgCollections", authenticate, transactionalControllerWrapper(getDsgCollections));
 router.get("/getComponents", getComponents);
 router.get("/resource/settings", settings);
+router.get("/getCatalogueDetails", authenticate, transactionalControllerWrapper(getCatalogueDetails));
 
 
 router.post("/login", transactionalControllerWrapper(login));
