@@ -1,5 +1,5 @@
 const { getYParamRecords } = require("./yParam");
-
+const {getDsgCollections} =require("./dsgPrm")
 const getCatalogueFilterMasters = async (conn) => {
     
     const design_category = await getYParamRecords(conn, {
@@ -231,5 +231,10 @@ async function settings(req, res, next){
     }}) 
 }
 
+async function collectionUrls(conn) {
+  const catalog = await getDsgCollections(conn, {});
+  return conn.res.json({message:{ msg: "success", data: catalog.map(item => `product-category/${item.DpCd}`) }});
+}
 
-module.exports = { getCatalogueFilterMasters, getDsgConfig, getComponents, settings };
+
+module.exports = { getCatalogueFilterMasters, getDsgConfig, getComponents, settings,collectionUrls };
