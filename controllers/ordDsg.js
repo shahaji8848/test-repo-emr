@@ -7,7 +7,7 @@ const { copyOrdLab } = require('../controllers/ordLab.js');
 
 
 // Main function to fetch catalogues based on dynamic filters
-async function getCatalogues(conn){
+async function getCatalog(conn){
   const kwargs = conn.req.body;
   console.log(kwargs)
   // const { CsCd } = conn.req.userInfo?.CsCd; // Extract user info from request
@@ -726,4 +726,4 @@ async function getCatalogueDetails(conn){
 };
 
 
-module.exports = { getCatalogues, copyOrdDsg, moveDsg, delOrdDsg, createOrder,getCatalogueDetails };
+module.exports = { getCatalog, copyOrdDsg, moveDsg, delOrdDsg, createOrder,getCatalogueDetails };
