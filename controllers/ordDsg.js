@@ -9,24 +9,27 @@ const { copyOrdLab } = require('../controllers/ordLab.js');
 // Main function to fetch catalogues based on dynamic filters
 async function getCatalogues(conn){
   const kwargs = conn.req.body;
-  const { CsCd } = conn.req.userInfo?.CsCd; // Extract user info from request
+  console.log(kwargs)
+  // const { CsCd } = conn.req.userInfo?.CsCd; // Extract user info from request
+  const { CsCd } = 1; // Extract user info from request
+
   const inputTypeMap = {};     // Maps parameter names to SQL types
   const inputValuesMap = {};   // Maps parameter names to their values
 
-  if (!kwargs.DpCd || typeof kwargs.DpCd !== 'string') {
-    throw new Error('Invalid Collection');
-  }
   // Generate JOIN tables based on filters
   const joinTables = getCatalogueJoinTables(kwargs);
 
   // Build dynamic WHERE conditions
-  const whereConditions = getCatalogueWhereConditions(kwargs, inputTypeMap, inputValuesMap);
+  const whereConditions = getCatalogueWhereConditions(kwargs, inputTypeMap, inputValuesMap, CsCd);
 
   // Build dynamic HAVING conditions (aggregate filters)
-  const havingConditions = getCatalogueHavingConditions(kwargs, inputTypeMap, inputValuesMap);
+  const havingConditions = getCatalogueHavingConditions(kwargs, inputTypeMap, inputValuesMap, CsCd);
+
+  const orderByClause = getCatalogueOrderBy(kwargs)
+
 
   // SELECT clause with calculated weights using conditional aggregation
-  const selectClause = `OdCoCd, OdTc, OdYy, OdChr, OdNo, OdSr, OdDmCd, CAST(ROUND(OdSalPrc, 4) AS DECIMAL(18,4)) as OdSalPrc, OdKt,
+  const selectClause = `Distinct OdCoCd, OdTc, OdYy, OdChr, OdNo, OdSr, OdDmCd, CAST(ROUND(OdSalPrc, 4) AS DECIMAL(18,4)) as OdSalPrc, OdKt,
     CAST(ROUND(SUM(CASE WHEN Rm.OrRmCtg IN ('D', 'C') THEN Rm.OrWt / 5 ELSE Rm.OrWt END), 4) AS DECIMAL(18,4)) AS GrWt,
     CAST(ROUND(SUM(CASE WHEN Rm.OrRmCtg = 'D' THEN Rm.OrWt ELSE 0 END), 4) AS DECIMAL(18,4)) AS DiaWt,
     CAST(ROUND(SUM(CASE WHEN Rm.OrRmCtg = 'C' THEN Rm.OrWt ELSE 0 END), 4) AS DECIMAL(18,4)) AS CsWt
@@ -37,9 +40,9 @@ async function getCatalogues(conn){
     from: 'OrdDsg',
     whereConditions,
     joinTables,
-    groupByClause: 'OdCoCd, OdTc, OdYy, OdChr, OdNo, OdSr, OdDmCd, OdSalPrc, OdKt',
+    groupByClause: 'OdCoCd, OdTc, OdYy, OdChr, OdNo, OdSr, OdDmCd, OdKt, OdSalPrc',
     havingConditions,
-    orderByClause: `OdSalPrc`,
+    orderByClause,
     inputTypeMap,
     inputValuesMap
   });
@@ -50,33 +53,41 @@ function getCatalogueJoinTables(kwargs) {
   const joins = [
     `OrdMst ON OdCoCd = OmCoCd AND OdTc = OmTc AND OdYy = OmYy AND OdChr = OmChr AND OdNo = OmNo`,
     `OrdRm Rm ON Rm.OrCoCd = OdCoCd AND Rm.OrTc = OdTc AND Rm.OrYy = OdYy AND Rm.OrChr = OdChr AND Rm.OrNo = OdNo AND Rm.OrSr = OdSr`,
-    `DsgPrm ON DpTyp = 'CAT' AND DpDmCd = OdDmCd AND DpCd = @DpCd`
   ];
 
   // Add DsgMst join if category or sales category filters are applied
-  if (kwargs.DmCtg?.length || kwargs.DmSalCtg?.length) {
+  if (isNonEmptyValue(kwargs?.DmCtg) || isNonEmptyValue(kwargs?.DmSalCtg)) {
     joins.push(`DsgMst ON DmTcTyp = OdDmTcTyp AND DmCd = OdDmCd AND DmSz = ''`);
+  }
+
+  // Add DsgPrm join if design parameter filter is used
+  if (isNonEmptyValue(kwargs?.DpCd)) {
+    joins.push(`DsgPrm ON DpTyp = 'CAT' AND DpDmCd = OdDmCd`);
   }
 
   return joins;
 }
 
-
 // Helper to create WHERE conditions dynamically
-function getCatalogueWhereConditions(kwargs = {}, inputTypeMap, inputValuesMap) {
-  const fields = ['DmCtg', 'DmSalCtg', 'OdSalPrc'];
-  const conditions = [ `OmCmCd = 'ZSELF'`, `OdTc = 'PL'`]; // Default filters
-  addInClause('DpCd', kwargs.DpCd, 'DpCd', conditions);
-  addInputMap('DpCd', kwargs.DpCd, inputTypeMap, inputValuesMap, 'DpCd');
+function getCatalogueWhereConditions(kwargs = {}, inputTypeMap, inputValuesMap, CsCd) {
+  const fields = ['DmCtg', 'DmSalCtg', 'OdSalPrc', 'OdDmCol', 'DpCd', , 'DsgAna'];
+  const conditions = [ `OmCmCd = 'ZSELF'`]; // Default filters
+  let cond
+  
+  if (kwargs.scope === 'Cs') {
+    conditions.push(`OdCoCd = 'ZZZ' AND OdTc = 'QT' AND OdChr = 'CS' AND OdNo = @CsCd`);
+    addInputMap('CsCd', CsCd, inputTypeMap, inputValuesMap, 'CsCd');
+  } else {
+    conditions.push(`OdTc = 'PL'`);
+  }
   
   fields.forEach((field) => {
     const value = kwargs[field];
-    if (!value && value !== false) return;
-
+    if (!isNonEmptyValue(value)) return;
     if (field === 'OdSalPrc') {
       addRangeConditions(field, value, inputTypeMap, inputValuesMap, conditions);
-    } else if (field === 'DmSalCtg'){
-      if (value.length){
+    } 
+    else if (field === 'DmSalCtg'){
         const paramNames = value.map((_, i) => `@${field}_${i}`);
         conditions.push(`(
           DmSalCtg IN (${paramNames}) OR
@@ -84,14 +95,60 @@ function getCatalogueWhereConditions(kwargs = {}, inputTypeMap, inputValuesMap) 
           DmSalCtg3 IN (${paramNames})
         )`);
         addInputMap(field, value, inputTypeMap, inputValuesMap, field);
+    } else if (field === 'DsgAna') {
+        const anaConds = value.map(([sr, cd], i) => {
+          addInputMap( `AnaSr_${i}`, String(sr), inputTypeMap, inputValuesMap, 'AnaSr');
+          addInputMap(`AnaCd_${i}`, cd, inputTypeMap, inputValuesMap, 'AnaCd');
+          return `(DaAnaSr = @AnaSr_${i} AND DaAnaCd = @AnaCd_${i})`;
+        }).join(' OR ');
+  
+        conditions.push(`
+          EXISTS (
+            SELECT DaCd FROM DsgAna
+            WHERE DaTcTyp = 'DM' AND DaCd = OdDmCd AND DaSz = '' AND (${anaConds})
+            GROUP BY DaCd
+            HAVING COUNT(DISTINCT CONCAT(DaAnaSr, '_', DaAnaCd)) = ${value.length}
+          )
+        `);
       }
-    }else {
+    else {
       addInClause(field, value, field, conditions);
       addInputMap(field, value, inputTypeMap, inputValuesMap, field);
     }
     
   });
+
+  const DmCdConditions = getDmCdConditions(kwargs, inputTypeMap, inputValuesMap)
+
+  if (isNonEmptyValue(DmCdConditions)) {
+    conditions.push(DmCdConditions);
+  }
+
   return conditions;
+}
+
+// Helper to create DmCd conditions (on aggregated values)
+function getDmCdConditions(kwargs, inputTypeMap, inputValuesMap) {
+  const fields = ['OdDmCd', 'RangeOdDmCd'];
+  const orConditions = [];
+
+  fields.forEach((field) => {
+    const value = kwargs[field];
+    if (!isNonEmptyValue(value)) return;
+
+    if (field === 'RangeOdDmCd') {
+      addRangeConditions('OdDmCd', value, inputTypeMap, inputValuesMap, orConditions);
+    } 
+    else {
+      addInClause(field, value, field, orConditions);
+      addInputMap(field, value, inputTypeMap, inputValuesMap, field);
+    }
+    
+  });
+  
+  if (isNonEmptyValue(orConditions)) {
+    return`(${orConditions.join(' OR ')})`;
+  }
 }
 
 // Helper to create HAVING conditions (on aggregated values)
@@ -117,53 +174,9 @@ function getCatalogueHavingConditions(kwargs = {}, inputTypeMap, inputValuesMap)
   return conditions;
 }
 
-function parseRangeString(rangeStr) {
-  if (typeof rangeStr !== 'string') {
-    throw new Error(`Invalid range: not a string. Got: ${rangeStr}`);
-  }
-
-  const trimmed = rangeStr.trim();
-
-  // Match strict "min-max" format with optional decimals
-  const match = /^(\d+(\.\d+)?)\s*-\s*(\d+(\.\d+)?)$/.exec(trimmed);
-  if (!match) {
-    throw new Error(`Invalid range format: "${rangeStr}". Expected format "min-max", e.g. "0-100"`);
-  }
-
-  const min = parseFloat(match[1]);
-  const max = parseFloat(match[3]);
-
-  return [min, max];
-}
-
-// Helper to add BETWEEN clauses for filters
-function addRangeConditions(field, ranges, inputTypeMap, inputValuesMap, conditions) {
-  const expr = getExpr(field) || field;
-  const subConditions = [];
-
-  if(expr){
-    ranges.forEach((range, idx) => {
-      if (typeof range === 'string') {
-        range = parseRangeString(range);
-      }
-  
-      if (!Array.isArray(range) || range.length !== 2) {
-        throw new Error(`Invalid range at index ${idx}: must be [min, max] array or "min-max" string.`);
-      }
-      const [from, to] = range;
-      const fromKey = `$from${field}_${idx}`;
-      const toKey = `$to${field}_${idx}`;
-  
-      subConditions.push(`(${expr} BETWEEN @${fromKey} AND @${toKey})`);
-  
-      addInputMap(fromKey, from, inputTypeMap, inputValuesMap, field)
-      addInputMap(toKey, to, inputTypeMap, inputValuesMap, field)
-    });
-  }
-
-  if (subConditions.length) {
-    conditions.push(`(${subConditions.join(' OR ')})`);
-  }
+// Helper to generate Order By clauses based on request filters
+function getCatalogueOrderBy(kwargs) {
+  return kwargs?.sortBy || `OdSalPrc Asc`;
 }
 
 // Maps field to corresponding SQL expression
@@ -173,10 +186,73 @@ function getExpr(field) {
     DiaWt: `ROUND(SUM(CASE WHEN Rm.OrRmCtg = 'D' THEN Rm.OrWt ELSE 0 END), 4)`,
     CsWt: `ROUND(SUM(CASE WHEN Rm.OrRmCtg = 'C' THEN Rm.OrWt ELSE 0 END), 4)`,
   };
-  return map[field];
+  return map[field] || field;
 }
 
+function parseRangeString(rangeStr) {
+  if (typeof rangeStr !== 'string') {
+    throw new Error(`Invalid range: expected a string. Got: ${typeof rangeStr}`);
+  }
 
+  const trimmed = rangeStr.trim();
+  const parts = trimmed.split('-').map(p => p.trim());
+
+  if (parts.length !== 2) {
+    throw new Error(`Invalid range format: "${rangeStr}". Expected format like "min-max", e.g. "0-100", "a-z"`);
+  }
+
+  const [start, end] = parts;
+
+  // Try to convert to numbers; if conversion fails, keep as string
+  const startNum = Number(start);
+  const endNum = Number(end);
+
+  const parsedStart = isNaN(startNum) ? start : startNum;
+  const parsedEnd = isNaN(endNum) ? end : endNum;
+
+  return [parsedStart, parsedEnd];
+}
+
+// Helper to add BETWEEN clauses for filters
+function addRangeConditions(field, ranges, inputTypeMap, inputValuesMap, conditions) {
+  const expr = getExpr(field);
+  const subConditions = [];
+
+  ranges.forEach((range, idx) => {
+    if (typeof range === 'string') {
+      range = parseRangeString(range);
+    }
+    const [from, to] = range;
+    const fromKey = `$from${field}_${idx}`;
+    const toKey = `$to${field}_${idx}`;
+
+    if (isNonEmptyValue(from) && isNonEmptyValue(to)){
+      subConditions.push(`(${expr} BETWEEN @${fromKey} AND @${toKey})`);
+      addInputMap(fromKey, from, inputTypeMap, inputValuesMap, field)
+      addInputMap(toKey, to, inputTypeMap, inputValuesMap, field)
+    }
+    else{
+      const rangeCondition = []
+      if(isNonEmptyValue(from)){
+        rangeCondition.push(`${expr} >= @${fromKey}`)
+
+        addInputMap(fromKey, from, inputTypeMap, inputValuesMap, field)
+      }
+      if(isNonEmptyValue(to)){
+        rangeCondition.push(`${expr} <= @${toKey}`)
+        addInputMap(toKey, to, inputTypeMap, inputValuesMap, field)
+      }
+      if (isNonEmptyValue(rangeCondition)){
+        subConditions.push(`(${rangeCondition.join(' AND ')})`)
+
+      }
+    }
+  });
+
+  if (subConditions.length) {
+    conditions.push(`(${subConditions.join(' OR ')})`);
+  }
+}
 
 // Adds IN clause with parameters like: field IN (@field_0, @field_1, ...)
 function addInClause(field, values, prefix, conditions) {
@@ -195,7 +271,6 @@ function addInClause(field, values, prefix, conditions) {
 // Adds values and types to the maps used by exeQuery
 function addInputMap(key, value, inputTypeMap, inputValuesMap, baseKey) {
   const baseTypes = getCatalogueBaseInputTypeMap();
-
 
   if (Array.isArray(value)) {
     value.forEach((val, i) => {
@@ -218,10 +293,18 @@ function getCatalogueBaseInputTypeMap() {
     GrWt: sql.Float,
     DiaWt: sql.Float,
     CsAvl: sql.VarChar(3),
+    OdDmCol: sql.VarChar(5),
+    CsWt: sql.Float,
+    CsAvl: sql.VarChar(3),
+    OdDmCd: sql.VarChar(15),
+    AnaSr: sql.VarChar(2),
+    AnaCd: sql.VarChar(8)
   };
 }
 
 async function getTargetHeaderDetails(conn, inputValuesMap){
+
+  
   const inputTypeMap = getcopyOrdDsgInputTypeMap();
   const resultToOmId = await exeQuery(conn, {
     selectClause: `TOP 1 OmIdNo`,
@@ -266,6 +349,7 @@ async function getTargetHeaderDetails(conn, inputValuesMap){
 
 }
 
+//Placeholder api
 async function copyOrdDsg(conn, kwargs = {}, useKwargs = 0) {
   let dsgList = []
   const inputTypeMap = getcopyOrdDsgInputTypeMap()
@@ -275,9 +359,26 @@ async function copyOrdDsg(conn, kwargs = {}, useKwargs = 0) {
 
   // Extract input based on source (kwargs or req.body)
   if (useKwargs) {
-    ({ dsgList = [], ToOdCoCd, ToOdTc, ToOdYy, ToOdChr, ToOdNo, ...params } = kwargs);
+    ({ dsgList = [], Cmcd, Cscd, ToOdTc,   ...params } = kwargs);
   } else {
-    ({ dsgList = [], ToOdCoCd, ToOdTc, ToOdYy, ToOdChr, ToOdNo, ...params } = conn.req.body);
+    ({ dsgList = [], Cmcd, Cscd, ToOdTc, ...params } = conn.req.body);
+  }
+
+  toInputValuesMap = {
+  }
+
+  //example data
+  if (ToOdTc == "SO"){
+    ToOdCoCd = "MW"
+    ToOdYy = 22,
+    ToOdChr = 'REG',
+    ToOdNo = 1264
+  }
+  else{
+    ToOdCoCd = 'ZZZ',
+    ToOdYy = 22,
+    ToOdChr = 'QT',
+    ToOdNo = Cscd
   }
 
   toInputValuesMap = {
@@ -427,13 +528,18 @@ function getCopyOrdDsgInsertSelectQuery() {
   return insertQuery;
 }
 
-function isEmptyValue(val) {
-  if (val === null || val === undefined) return true;
-  if (typeof val === "string" && val.trim() === "") return true;
-  if (typeof val === "number" && val === 0) return true;
-  if (Array.isArray(val) && val.length === 0) return true;
-  if (typeof val === "object" && Object.keys(val).length === 0) return true;
-  return false;
+function isNonEmptyValue(val) {
+  if (val === null || val === undefined) return false;
+  if (typeof val === "string" && val.trim() === "") return false;
+  if (typeof val === "number" && val === 0) return false;
+  if (Array.isArray(val) && val.length === 0) return false;
+  if (
+    typeof val === "object" &&
+    !Array.isArray(val) &&
+    val.constructor === Object &&
+    Object.keys(val).length === 0
+  ) return false;
+  return true;
 }
 
 async function createOrder(conn, kwargs = {}, useKwargs = 0) {
@@ -445,19 +551,20 @@ async function createOrder(conn, kwargs = {}, useKwargs = 0) {
   }
 
 
-  const OmCmCd = 5; //customer
+  const CmCd = conn.req.userInfo?.CsCd; //customer
+  const CsCd =  conn.req.userInfo?.username
 
   //target header details
   const inputValuesMap = {
     dsgList,
-    OmCmCd,
-    ToOdCoCd: 'MW',
+    CmCd,
+    CsCd,
     ToOdTc: 'SO',
-    ToOdYy: 22,
-    ToOdChr: 'REG',
-    ToOdNo: 1264
   };
+
+  //placeholder api
   let data = await copyOrdDsg(conn, inputValuesMap, 1);
+
   return {
     msg: `Order Created Successfully.`,
     data:data
@@ -468,9 +575,14 @@ async function createOrder(conn, kwargs = {}, useKwargs = 0) {
 
 
 async function moveDsg(conn, kwargs = {}, useKwargs = 0, sourceRows = []) {
-  const isFromKwargs = !!useKwargs;
+  
+  if (useKwargs) {
+    ({ dsgList = [] } = kwargs); // <-- Note the parentheses
+  } else {
+    ({ dsgList = [] } = conn.req.body); // <-- Note the parentheses
+  }
   const voucherTypeMap = getVoucherTypeMap()
-  const validVoucherTypes = ['CS', 'CT', 'QT']
+  const validVoucherTypes = ['CS', 'CT']
   const VoucherType = isFromKwargs ? kwargs.ToOdChr : conn.req.body.ToOdChr;
   if(VoucherType == 'CS'){
     let csFilters = await getCsFilters(conn)
@@ -478,7 +590,7 @@ async function moveDsg(conn, kwargs = {}, useKwargs = 0, sourceRows = []) {
     const keys = Object.keys(csFilters);
     const nonEmptyKeys = keys.filter(key => {
       if (key === "selectedScope") return false;
-      return !isEmptyValue(csFilters[key]);
+      return isNonEmptyValue(csFilters[key]);
     });
 
     if (nonEmptyKeys.length === 0) {
@@ -488,76 +600,22 @@ async function moveDsg(conn, kwargs = {}, useKwargs = 0, sourceRows = []) {
 
   validateVoucherType(validVoucherTypes, VoucherType)
 
-  const ToOdNo = conn.req.userInfo?.CsCd;
-  if (!ToOdNo) {
-    throw new Error("Missing user session code (ToOdNo).");
-  }
+  const CmCd = conn.req.userInfo?.username; //customer
+  const CsCd =  conn.req.userInfo?.CsCd
 
-  let rowsToGroup = isFromKwargs ? sourceRows : conn.req.body.dsgList;
-  rowsToGroup = rowsToGroup.filter(row =>
-    row != null &&
-    typeof row === 'object' &&
-    !Array.isArray(row) &&
-    Object.keys(row).length > 0
-  );
+  //target header details
+  const inputValuesMap = {
+    dsgList,
+    CmCd,
+    CsCd,
+    ToOdTc: VoucherType,
+  };
 
-  if (!Array.isArray(rowsToGroup) || rowsToGroup.length === 0) {
-    throw new Error("No designs provided to move.");
-  }
-
-  const groupedDesigns = groupDsgByFromParams(rowsToGroup);
-  for (const group of groupedDesigns) {
-    const { OdCoCd, OdTc, OdYy, OdChr, OdNo, OdSrList } = group;
-
-    if (!Array.isArray(OdSrList) || OdSrList.length === 0) {
-      throw new Error(`Missing design serials for voucher ${OdChr}-${OdNo}`);
-    }
-
-    const inputValuesMap = {
-      FromOdCoCd: OdCoCd,
-      FromOdTc: OdTc,
-      FromOdYy: OdYy,
-      FromOdChr: OdChr,
-      FromOdNo: OdNo,
-      FromOdSrList: OdSrList,
-      ToOdCoCd: 'ZZZ',
-      ToOdTc: 'QT',
-      ToOdYy: OdYy,
-      ToOdChr: VoucherType,
-      ToOdNo: ToOdNo,
-    };
-
-    // const designs = isFromKwargs ? group.rows : undefined;
-    // await copyOrdDsg(conn, inputValuesMap, 1, designs);
-    await copyOrdDsg(conn, inputValuesMap, 1);
-  }
+  //placeholder api
+  let data = await copyOrdDsg(conn, inputValuesMap, 1);
+ 
 
   return `Designs moved successfully to ${voucherTypeMap[VoucherType] || VoucherType}.`;
-}
-
-
-function groupDsgByFromParams(dsgList) {
-  const grouped = {};
-
-  for (const row of dsgList) {
-    const key = `${row.OdCoCd}_${row.OdTc}_${row.OdYy}_${row.OdChr}_${row.OdNo}`;
-    if (!grouped[key]) {
-      grouped[key] = {
-        OdCoCd: row.OdCoCd,
-        OdTc: row.OdTc,
-        OdYy: row.OdYy,
-        OdChr: row.OdChr,
-        OdNo: row.OdNo,
-        OdSrList: [],
-        rows: [] // holds full row objects
-      };
-    }
-
-    grouped[key].OdSrList.push(row.OdSr);
-    grouped[key].rows.push(row);
-  }
-
-  return Object.values(grouped);
 }
 
 
