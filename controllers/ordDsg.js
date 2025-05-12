@@ -70,7 +70,6 @@ function getCatalogJoinTables(kwargs) {
 // Helper to create WHERE conditions dynamically
 function getCatalogWhereConditions(kwargs = {}, inputTypeMap, inputValuesMap, CsCd) {
   const fields = ['DmCtg', 'DmSalCtg', 'RgOdSalPrc', 'OdDmCol', 'DpCd', , 'DsgAna'];
-  const rangeFields = ['RgOdSalPrc']
   const conditions = [ `OmCmCd = 'ZSELF'`]; // Default filters
   
   if (kwargs.scope === 'Cs') {
@@ -83,7 +82,7 @@ function getCatalogWhereConditions(kwargs = {}, inputTypeMap, inputValuesMap, Cs
   fields.forEach((field) => {
     const value = kwargs[field];
     if (!isNonEmptyValue(value)) return;
-    if (rangeFields.includes(field)) {
+    if (field === 'RgOdSalPrc') {
       addRangeConditions(field, value, inputTypeMap, inputValuesMap, conditions);
     } 
     else if (field === 'DmSalCtg'){
