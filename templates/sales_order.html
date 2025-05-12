@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Sales Order Details</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 12px;
+    }
+    .header {
+      text-align: center;
+      font-size: 18px;
+      margin-bottom: 20px;
+    }
+    .section-title {
+      font-size: 14px;
+      font-weight: bold;
+      text-decoration: underline;
+      margin-top: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      border: 1px solid #000;
+      padding: 5px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+    .content {
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>Sales Order Details</h1>
+  </div>
+
+  <div class="content">
+    <p>{{order_data}}</p>
+  <p>Sales Order Id -{{order_data.OmCoCd}}/{{order_data.OmTc}}/{{order_data.OmYy}}/{{order_data.OmChr}}/{{order_data.OmNo}}</p>
+  <p>Order Qty - {{order_data.OdOrdQty}}</p>
+  <p>Sales Price - {{order_data.OdSalPrc}}</p>
+  </div>
+  <div class="section-title">Rm Details</div>
+  <table border="1" cellspacing="0" cellpadding="5">
+    <thead>
+      <tr>
+        <th>RmCd</th>
+        <th>Qty</th>
+        <th>Sales Rate</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for dsg in order_data.ord_dsg %}
+        {% for rm in dsg.ord_rm %}
+          <tr>
+            <td>{{ rm.OrRmCd }}</td>
+            <td>{{ rm.OrQty }}</td>
+            <td>{{ rm.OrSalRt }}</td>
+          </tr>
+        {% endfor %}
+      {% endfor %}
+    </tbody>
+  </table>
+  
+  <br>
+  
+  <div class="section-title">Lab Details</div>
+  <table border="1" cellspacing="0" cellpadding="5">
+    <thead>
+      <tr>
+        <th>LabCd</th>
+        <th>LabType</th>
+        <th>LabRate</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for dsg in order_data.ord_dsg %}
+        {% for lab in dsg.ord_lab %}
+          <tr>
+            <td>{{ lab.OlQty }}</td>
+            <td>{{ lab.OlLabTp }}</td>
+            <td>{{ lab.OlLabRt }}</td>
+          </tr>
+        {% endfor %}
+      {% endfor %}
+    </tbody>
+  </table>
+  
+
+</body>
+</html>

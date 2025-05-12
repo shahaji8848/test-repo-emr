@@ -1,89 +1,76 @@
+const  { getCustomers } = require('./custMst.js');
+const { getCatalogues, moveDsg, delOrdDsg } = require('./ordDsg.js');
+const { getParamRecords, getDesignAnalytics } = require('./param.js')
+const { refreshCsFltrs } = require('./yCsFltr.js')
+const {getDsgCollections} =require("./dsgPrm.js")
 const { getYParamRecords } = require("./yParam");
-const {getDsgCollections} =require("./dsgPrm")
+
+
 const getCatalogueFilterMasters = async (conn) => {
+  const {
+    anaSr = '[]' // default anaSr values
+  } = conn.req.query;
+
+  const customers = await getCustomers(conn);
+  const design_category = await getParamRecords(conn, { inputValuesMap: { "PTyp": "DmCtg" } });
+  const sales_category = await getParamRecords(conn, { selectClause: `DISTINCT PSCd, MAX(PDesc) as PDesc`, groupByClause:`PSCd`, orderByClause: `PSCd`, inputValuesMap: { "PTyp": "SalCtg" } });
+  const design_color = await getParamRecords(conn, { inputValuesMap: { "PTyp": "DmCol" } });
+  const design_analysis = await getDesignAnalytics(conn, anaSr ? JSON.parse(anaSr) : []);
+
+  const filters = [
+    { section: "customers", values: customers },
+    { section: "design_category", values: design_category },
+    { section: "sales_category", values: sales_category },
+    { section: "design_color", values: design_color },
+    { section: "design_analysis", values: design_analysis },
+  ];
+
+  return { doctype:"", docname:"", filters };
+};
+
+
+const getyCatalogueFilterMasters = async (conn) => {
     
-    const design_category = await getYParamRecords(conn, {
+  const design_category = await getYParamRecords(conn, {
+      selectClause: 'DISTINCT PMCd, PDesc',
+      whereConditions: ['PTyp = @PTyp'],
+      inputValuesMap: { PTyp: 'yDmCtg' },
+    });
+  
+    const sub_category = await getYParamRecords(conn, {
         selectClause: 'DISTINCT PMCd, PDesc',
         whereConditions: ['PTyp = @PTyp'],
-        inputValuesMap: { PTyp: 'yDmCtg' },
-      });
-    
-      const sub_category = await getYParamRecords(conn, {
-          selectClause: 'DISTINCT PMCd, PDesc',
-          whereConditions: ['PTyp = @PTyp'],
-          inputValuesMap: { PTyp: 'ySubCtg' },
-        });
-
-    const price_range = await getYParamRecords(conn,{
-        selectClause: 'DISTINCT PMCd,PNum,PNum1, PDesc',
-        whereConditions: ['PTyp = @PTyp'],
-        inputValuesMap: { PTyp: 'yPrice' },
+        inputValuesMap: { PTyp: 'ySubCtg' },
       });
 
-    const dia_wt = await getYParamRecords(conn,{
-        selectClause: 'DISTINCT PMCd,PNum,PNum1 ,PDesc',
-        whereConditions: ['PTyp = @PTyp'],
-        inputValuesMap: { PTyp: 'yDiaWt' },
-      });
+  const price_range = await getYParamRecords(conn,{
+      selectClause: 'DISTINCT PMCd,PNum,PNum1, PDesc',
+      whereConditions: ['PTyp = @PTyp'],
+      inputValuesMap: { PTyp: 'yPrice' },
+    });
 
-    const gross_wt = await getYParamRecords(conn,{
-        selectClause: 'DISTINCT PMCd,PNum,PNum1 ,PDesc',
-        whereConditions: ['PTyp = @PTyp'],
-        inputValuesMap: { PTyp: 'yGrossWt' },
-      });
-  
-    const filters = [
-      { section: "Category", values: design_category },
-      { section: "Sub Category", values: sub_category },
-      { section: "Price", values: price_range },
-      { section: "Diamond Weight", values: dia_wt },
-      { section: "Gross Weight", values: gross_wt },
-    ];
-  
-    return { doctype:"", docname:"",filters:filters };
-  };
+  const dia_wt = await getYParamRecords(conn,{
+      selectClause: 'DISTINCT PMCd,PNum,PNum1 ,PDesc',
+      whereConditions: ['PTyp = @PTyp'],
+      inputValuesMap: { PTyp: 'yDiaWt' },
+    });
 
-const getDsgConfig = async (conn) => {
-    const metals = await getYParamRecords(conn, {
-        selectClause: 'DISTINCT PMCd, PDesc',
-        whereConditions: ['PTyp = @PTyp'],
-        inputValuesMap: { PTyp: 'yMetal' },
-      });
-    
-      const metal_purity = await getYParamRecords(conn, {
-          selectClause: 'DISTINCT PMCd,PSCd,PDesc',
-          whereConditions: ['PTyp = @PTyp'],
-          inputValuesMap: { PTyp: 'yPurity' },
-        });
+  const gross_wt = await getYParamRecords(conn,{
+      selectClause: 'DISTINCT PMCd,PNum,PNum1 ,PDesc',
+      whereConditions: ['PTyp = @PTyp'],
+      inputValuesMap: { PTyp: 'yGrossWt' },
+    });
 
-    const tone = await getYParamRecords(conn,{
-        selectClause: 'DISTINCT PMCd,PDesc',
-        whereConditions: ['PTyp = @PTyp'],
-        inputValuesMap: { PTyp: 'yTone' },
-      });
+  const filters = [
+    { section: "Category", values: design_category },
+    { section: "Sub Category", values: sub_category },
+    { section: "Price", values: price_range },
+    { section: "Diamond Weight", values: dia_wt },
+    { section: "Gross Weight", values: gross_wt },
+  ];
 
-    const dia_qlty = await getYParamRecords(conn,{
-        selectClause: 'DISTINCT PMCd, PDesc',
-        whereConditions: ['PTyp = @PTyp'],
-        inputValuesMap: { PTyp: 'yDiaQlty' },
-      });
-
-    const dsgSz = await getYParamRecords(conn,{
-        selectClause: 'DISTINCT PMCd,PNum,PDesc',
-        whereConditions: ['PTyp = @PTyp'],
-        inputValuesMap: { PTyp: 'yDsgSz' },
-      });
-  
-    const filters = [
-      { section: "metals", values: metals },
-      { section: "metal_purity", values: metal_purity },
-      { section: "tone", values: tone },
-      { section: "dia_qlty", values: dia_qlty },
-      { section: "design_size", values: dsgSz },
-    ];
-  
-    return { doctype:"", docname:"",filters:filters };
-}
+  return { doctype:"", docname:"",filters:filters };
+};
 
 //static response api for development purpose
 async function getComponents(req, res, next){
@@ -210,7 +197,6 @@ else if(page_type == 'Cart Page'){
   return res.json(response) 
 }
 
-
 //static response api for development purpose
 async function settings(req, res, next){
   return res.json({"data": {
@@ -236,5 +222,11 @@ async function collectionUrls(conn) {
   return conn.res.json({message:{ msg: "success", data: catalog.map(item => `product-category/${item.DpCd}`) }});
 }
 
+async function refreshCurrentSessionCatelogues(conn){
+  const result = await getCatalogues(conn)
+  await moveDsg(conn, {ToOdChr: 'CS'}, 1, result)
+  return result
+}
 
-module.exports = { getCatalogueFilterMasters, getDsgConfig, getComponents, settings,collectionUrls };
+
+module.exports = { getCatalogueFilterMasters, getComponents, refreshCurrentSessionCatelogues,settings,collectionUrls ,getyCatalogueFilterMasters};
