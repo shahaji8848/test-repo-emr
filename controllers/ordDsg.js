@@ -160,7 +160,7 @@ function getDmCdConditions(kwargs, inputTypeMap, inputValuesMap) {
 
 // Helper to create HAVING conditions (on aggregated values)
 function getCatalogHavingConditions(kwargs = {}, inputTypeMap, inputValuesMap) {
-  const fields = ['GrWt', 'DiaWt', 'CsWt', 'CsAvl'];
+  const fields = ['RgGrWt', 'RgDiaWt', 'RgCsWt', 'CsAvl'];
   const conditions = [];
 
   fields.forEach((field) => {
@@ -206,18 +206,20 @@ function addRangeConditions(field, ranges, inputTypeMap, inputValuesMap, conditi
 
   if (ranges.length === 0) {
     return;
-  } else if (ranges.length === 1) {
+  }
+  if (ranges.length === 1) {
     from = ranges[0];
     to = 0;
   } else if (ranges.length === 2) {
     from = ranges[0];
     to = ranges[1];
   } else {
-    from = Math.min(...ranges);
-    to = Math.max(...ranges);
+    from = ranges.reduce((a, b) => (a < b ? a : b));
+    to = ranges.reduce((a, b) => (a > b ? a : b));
   }
-  const fromKey = `$from${field}`;
-  const toKey = `$to${field}`;
+  const fromKey = `from${field}`;
+  const toKey = `to${field}`;
+  console.log("inpws")
 
   if (isNonEmptyValue(from) && isNonEmptyValue(to)){
       subConditions.push(`(${expr} BETWEEN @${fromKey} AND @${toKey})`);
@@ -241,6 +243,7 @@ function addRangeConditions(field, ranges, inputTypeMap, inputValuesMap, conditi
   if (isNonEmptyValue(subConditions)) {
     conditions.push(`(${subConditions.join(' OR ')})`);
   }
+  console.log(conditions, inputValuesMap)
 }
 
 // Adds IN clause with parameters like: field IN (@field_0, @field_1, ...)
@@ -272,12 +275,13 @@ function addInputMap(key, value, inputTypeMap, inputValuesMap, baseKey) {
   }
 }
 
-async function getCatalogParamBaseKeyMap(field){
+function getCatalogParamBaseKeyMap(field){
    const map = {
     "RgGrWt": "GrWt",
     "RgDiaWt": "DiaWt",
     "RgCsWt": "CsWt",
-    "RgOdDmCd": "OdDmCd"
+    "RgOdDmCd": "OdDmCd",
+    "RgOdSalPrc": "OdSalPrc"
   };
   return map[field] || field;
 }
@@ -726,4 +730,4 @@ async function getCatalogDetails(conn){
 };
 
 
-module.exports = { getCatalog, copyOrdDsg, moveDsg, delOrdDsg, createOrder,getCatalogueDetails };
+module.exports = { getCatalog, copyOrdDsg, moveDsg, delOrdDsg, createOrder, getCatalogDetails };
