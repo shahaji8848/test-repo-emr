@@ -18,7 +18,7 @@ async function login(conn) {
   const { username, password } = conn.req.body;
 
   if (!username || !password) {
-    return conn.res.status(400).json({ message: "Username and password are required" });
+    return  {message: "Username and password are required" };
   }
 
   let loginData = await checkCredentials(conn, 'Param', 'USR', username, password);
@@ -33,12 +33,12 @@ async function login(conn) {
     const CsCd = await getCurrentSessionCode(conn, username, ptyp);
     const token = jwt.sign({ username, CsCd, ptyp }, process.env.JWT_SECRET, { expiresIn: '24h' });
 
-    return conn.res.status(200).json({
+    return {
       access_token: token,
       full_name: loginData[0]?.full_name || ''
-    });
+    };
   } else {
-    return conn.res.status(401).json({ message: "Invalid username or password" });
+    return { message: "Invalid username or password" };
   }
 }
 
