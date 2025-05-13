@@ -9,7 +9,6 @@ const { copyOrdLab } = require('../controllers/ordLab.js');
 // Main function to fetch catalogues based on dynamic filters
 async function getCatalog(conn){
   const kwargs = conn.req.body;
-  console.log(kwargs)
   // const { CsCd } = conn.req.userInfo?.CsCd; // Extract user info from request
   const { CsCd } = 1; // Extract user info from request
 
@@ -17,15 +16,15 @@ async function getCatalog(conn){
   const inputValuesMap = {};   // Maps parameter names to their values
 
   // Generate JOIN tables based on filters
-  const joinTables = getCatalogueJoinTables(kwargs);
+  const joinTables = getCatalogJoinTables(kwargs);
 
   // Build dynamic WHERE conditions
-  const whereConditions = getCatalogueWhereConditions(kwargs, inputTypeMap, inputValuesMap, CsCd);
+  const whereConditions = getCatalogWhereConditions(kwargs, inputTypeMap, inputValuesMap, CsCd);
 
   // Build dynamic HAVING conditions (aggregate filters)
-  const havingConditions = getCatalogueHavingConditions(kwargs, inputTypeMap, inputValuesMap, CsCd);
+  const havingConditions = getCatalogHavingConditions(kwargs, inputTypeMap, inputValuesMap, CsCd);
 
-  const orderByClause = getCatalogueOrderBy(kwargs)
+  const orderByClause = getCatalogOrderBy(kwargs)
 
 
   // SELECT clause with calculated weights using conditional aggregation
@@ -49,7 +48,7 @@ async function getCatalog(conn){
 };
 
 // Helper to generate JOIN clauses based on request filters
-function getCatalogueJoinTables(kwargs) {
+function getCatalogJoinTables(kwargs) {
   const joins = [
     `OrdMst ON OdCoCd = OmCoCd AND OdTc = OmTc AND OdYy = OmYy AND OdChr = OmChr AND OdNo = OmNo`,
     `OrdRm Rm ON Rm.OrCoCd = OdCoCd AND Rm.OrTc = OdTc AND Rm.OrYy = OdYy AND Rm.OrChr = OdChr AND Rm.OrNo = OdNo AND Rm.OrSr = OdSr`,
@@ -69,10 +68,9 @@ function getCatalogueJoinTables(kwargs) {
 }
 
 // Helper to create WHERE conditions dynamically
-function getCatalogueWhereConditions(kwargs = {}, inputTypeMap, inputValuesMap, CsCd) {
-  const fields = ['DmCtg', 'DmSalCtg', 'OdSalPrc', 'OdDmCol', 'DpCd', , 'DsgAna'];
+function getCatalogWhereConditions(kwargs = {}, inputTypeMap, inputValuesMap, CsCd) {
+  const fields = ['DmCtg', 'DmSalCtg', 'RgOdSalPrc', 'OdDmCol', 'DpCd', , 'DsgAna'];
   const conditions = [ `OmCmCd = 'ZSELF'`]; // Default filters
-  let cond
   
   if (kwargs.scope === 'Cs') {
     conditions.push(`OdCoCd = 'ZZZ' AND OdTc = 'QT' AND OdChr = 'CS' AND OdNo = @CsCd`);
@@ -84,38 +82,18 @@ function getCatalogueWhereConditions(kwargs = {}, inputTypeMap, inputValuesMap, 
   fields.forEach((field) => {
     const value = kwargs[field];
     if (!isNonEmptyValue(value)) return;
-    if (field === 'OdSalPrc') {
+    if (field === 'RgOdSalPrc') {
       addRangeConditions(field, value, inputTypeMap, inputValuesMap, conditions);
     } 
     else if (field === 'DmSalCtg'){
-        const paramNames = value.map((_, i) => `@${field}_${i}`);
-        conditions.push(`(
-          DmSalCtg IN (${paramNames}) OR
-          DmSalCtg2 IN (${paramNames}) OR
-          DmSalCtg3 IN (${paramNames})
-        )`);
-        addInputMap(field, value, inputTypeMap, inputValuesMap, field);
+        addDmSalCtgConditions(field, value, inputTypeMap, inputValuesMap, conditions)
     } else if (field === 'DsgAna') {
-        const anaConds = value.map(([sr, cd], i) => {
-          addInputMap( `AnaSr_${i}`, String(sr), inputTypeMap, inputValuesMap, 'AnaSr');
-          addInputMap(`AnaCd_${i}`, cd, inputTypeMap, inputValuesMap, 'AnaCd');
-          return `(DaAnaSr = @AnaSr_${i} AND DaAnaCd = @AnaCd_${i})`;
-        }).join(' OR ');
-  
-        conditions.push(`
-          EXISTS (
-            SELECT DaCd FROM DsgAna
-            WHERE DaTcTyp = 'DM' AND DaCd = OdDmCd AND DaSz = '' AND (${anaConds})
-            GROUP BY DaCd
-            HAVING COUNT(DISTINCT CONCAT(DaAnaSr, '_', DaAnaCd)) = ${value.length}
-          )
-        `);
+        addDsgAnaConditions(field, value, inputTypeMap, inputValuesMap, conditions)
       }
     else {
       addInClause(field, value, field, conditions);
       addInputMap(field, value, inputTypeMap, inputValuesMap, field);
     }
-    
   });
 
   const DmCdConditions = getDmCdConditions(kwargs, inputTypeMap, inputValuesMap)
@@ -123,21 +101,50 @@ function getCatalogueWhereConditions(kwargs = {}, inputTypeMap, inputValuesMap, 
   if (isNonEmptyValue(DmCdConditions)) {
     conditions.push(DmCdConditions);
   }
-
   return conditions;
+}
+
+
+// Helper to create DmSalCtg conditions
+function addDsgAnaConditions(field, value, inputTypeMap, inputValuesMap, conditions) {
+ const anaConds = value.map(([sr, cd], i) => {
+    addInputMap( `AnaSr_${i}`, String(sr), inputTypeMap, inputValuesMap, 'AnaSr');
+    addInputMap(`AnaCd_${i}`, cd, inputTypeMap, inputValuesMap, 'AnaCd');
+    return `(DaAnaSr = @AnaSr_${i} AND DaAnaCd = @AnaCd_${i})`;
+  }).join(' OR ');
+
+  conditions.push(`
+    EXISTS (
+      SELECT DaCd FROM DsgAna
+      WHERE DaTcTyp = 'DM' AND DaCd = OdDmCd AND DaSz = '' AND (${anaConds})
+      GROUP BY DaCd
+      HAVING COUNT(DISTINCT CONCAT(DaAnaSr, '_', DaAnaCd)) = ${value.length}
+    )
+  `);
+}
+
+// Helper to create DmSalCtg conditions
+function addDmSalCtgConditions(field, value, inputTypeMap, inputValuesMap, conditions) {
+  const paramNames = value.map((_, i) => `@${field}_${i}`);
+  conditions.push(`(
+    DmSalCtg IN (${paramNames}) OR
+    DmSalCtg2 IN (${paramNames}) OR
+    DmSalCtg3 IN (${paramNames})
+  )`);
+  addInputMap(field, value, inputTypeMap, inputValuesMap, field);
 }
 
 // Helper to create DmCd conditions (on aggregated values)
 function getDmCdConditions(kwargs, inputTypeMap, inputValuesMap) {
-  const fields = ['OdDmCd', 'RangeOdDmCd'];
+  const fields = ['OdDmCd', 'RgOdDmCd'];
   const orConditions = [];
 
   fields.forEach((field) => {
     const value = kwargs[field];
     if (!isNonEmptyValue(value)) return;
 
-    if (field === 'RangeOdDmCd') {
-      addRangeConditions('OdDmCd', value, inputTypeMap, inputValuesMap, orConditions);
+    if (field === 'RgOdDmCd') {
+      addRangeConditions(field, value, inputTypeMap, inputValuesMap, orConditions);
     } 
     else {
       addInClause(field, value, field, orConditions);
@@ -152,8 +159,8 @@ function getDmCdConditions(kwargs, inputTypeMap, inputValuesMap) {
 }
 
 // Helper to create HAVING conditions (on aggregated values)
-function getCatalogueHavingConditions(kwargs = {}, inputTypeMap, inputValuesMap) {
-  const fields = ['GrWt', 'DiaWt', 'CsWt', 'CsAvl'];
+function getCatalogHavingConditions(kwargs = {}, inputTypeMap, inputValuesMap) {
+  const fields = ['RgGrWt', 'RgDiaWt', 'RgCsWt', 'CsAvl'];
   const conditions = [];
 
   fields.forEach((field) => {
@@ -175,7 +182,7 @@ function getCatalogueHavingConditions(kwargs = {}, inputTypeMap, inputValuesMap)
 }
 
 // Helper to generate Order By clauses based on request filters
-function getCatalogueOrderBy(kwargs) {
+function getCatalogOrderBy(kwargs) {
   return kwargs?.sortBy || `OdSalPrc Asc`;
 }
 
@@ -189,69 +196,54 @@ function getExpr(field) {
   return map[field] || field;
 }
 
-function parseRangeString(rangeStr) {
-  if (typeof rangeStr !== 'string') {
-    throw new Error(`Invalid range: expected a string. Got: ${typeof rangeStr}`);
-  }
-
-  const trimmed = rangeStr.trim();
-  const parts = trimmed.split('-').map(p => p.trim());
-
-  if (parts.length !== 2) {
-    throw new Error(`Invalid range format: "${rangeStr}". Expected format like "min-max", e.g. "0-100", "a-z"`);
-  }
-
-  const [start, end] = parts;
-
-  // Try to convert to numbers; if conversion fails, keep as string
-  const startNum = Number(start);
-  const endNum = Number(end);
-
-  const parsedStart = isNaN(startNum) ? start : startNum;
-  const parsedEnd = isNaN(endNum) ? end : endNum;
-
-  return [parsedStart, parsedEnd];
-}
-
 // Helper to add BETWEEN clauses for filters
 function addRangeConditions(field, ranges, inputTypeMap, inputValuesMap, conditions) {
+  field = getCatalogParamBaseKeyMap(field)
   const expr = getExpr(field);
-  const subConditions = [];
+  const subConditions = []; 
 
-  ranges.forEach((range, idx) => {
-    if (typeof range === 'string') {
-      range = parseRangeString(range);
-    }
-    const [from, to] = range;
-    const fromKey = `$from${field}_${idx}`;
-    const toKey = `$to${field}_${idx}`;
+  let from, to;
 
-    if (isNonEmptyValue(from) && isNonEmptyValue(to)){
+  if (ranges.length === 0) {
+    return;
+  }
+  if (ranges.length === 1) {
+    from = ranges[0];
+    to = 0;
+  } else if (ranges.length === 2) {
+    from = ranges[0];
+    to = ranges[1];
+  } else {
+    from = ranges.reduce((a, b) => (a < b ? a : b));
+    to = ranges.reduce((a, b) => (a > b ? a : b));
+  }
+  const fromKey = `from${field}`;
+  const toKey = `to${field}`;
+  console.log("inpws")
+
+  if (isNonEmptyValue(from) && isNonEmptyValue(to)){
       subConditions.push(`(${expr} BETWEEN @${fromKey} AND @${toKey})`);
       addInputMap(fromKey, from, inputTypeMap, inputValuesMap, field)
       addInputMap(toKey, to, inputTypeMap, inputValuesMap, field)
     }
-    else{
-      const rangeCondition = []
-      if(isNonEmptyValue(from)){
-        rangeCondition.push(`${expr} >= @${fromKey}`)
-
-        addInputMap(fromKey, from, inputTypeMap, inputValuesMap, field)
-      }
-      if(isNonEmptyValue(to)){
-        rangeCondition.push(`${expr} <= @${toKey}`)
-        addInputMap(toKey, to, inputTypeMap, inputValuesMap, field)
-      }
-      if (isNonEmptyValue(rangeCondition)){
-        subConditions.push(`(${rangeCondition.join(' AND ')})`)
-
-      }
+  else{
+    const rangeCondition = []
+    if(isNonEmptyValue(from)){
+      rangeCondition.push(`${expr} >= @${fromKey}`)
+      addInputMap(fromKey, from, inputTypeMap, inputValuesMap, field)
     }
-  });
-
-  if (subConditions.length) {
+    if(isNonEmptyValue(to)){
+      rangeCondition.push(`${expr} <= @${toKey}`)
+      addInputMap(toKey, to, inputTypeMap, inputValuesMap, field)
+    }
+    if (isNonEmptyValue(rangeCondition)){
+      subConditions.push(`(${rangeCondition.join(' AND ')})`)
+    }
+  }
+  if (isNonEmptyValue(subConditions)) {
     conditions.push(`(${subConditions.join(' OR ')})`);
   }
+  console.log(conditions, inputValuesMap)
 }
 
 // Adds IN clause with parameters like: field IN (@field_0, @field_1, ...)
@@ -270,7 +262,7 @@ function addInClause(field, values, prefix, conditions) {
 
 // Adds values and types to the maps used by exeQuery
 function addInputMap(key, value, inputTypeMap, inputValuesMap, baseKey) {
-  const baseTypes = getCatalogueBaseInputTypeMap();
+  const baseTypes = getCatalogBaseInputTypeMap();
 
   if (Array.isArray(value)) {
     value.forEach((val, i) => {
@@ -283,8 +275,20 @@ function addInputMap(key, value, inputTypeMap, inputValuesMap, baseKey) {
   }
 }
 
-// Base input type map used for Catalogue
-function getCatalogueBaseInputTypeMap() {
+function getCatalogParamBaseKeyMap(field){
+   const map = {
+    "RgGrWt": "GrWt",
+    "RgDiaWt": "DiaWt",
+    "RgCsWt": "CsWt",
+    "RgOdDmCd": "OdDmCd",
+    "RgOdSalPrc": "OdSalPrc"
+  };
+  return map[field] || field;
+}
+
+
+// Base input type map used for Catalog
+function getCatalogBaseInputTypeMap() {
   return {
     DpCd: sql.VarChar(16),
     DmCtg: sql.VarChar(5),
@@ -673,7 +677,7 @@ function getVoucherTypeMap(){
   return voucherTypeMap;
 }
 
-async function getCatalogueDetails(conn){
+async function getCatalogDetails(conn){
   const { item,  ...Params } = conn.req.query;
   const [OdCoCd,OdTc, OdYyStr, OdChr, OdNoStr, OdSrStr] = item.split('-');
 
@@ -712,7 +716,7 @@ async function getCatalogueDetails(conn){
     CAST(ROUND(SUM(CASE WHEN Rm.OrRmCtg = 'C' THEN Rm.OrWt ELSE 0 END), 4) AS DECIMAL(18,4)) AS CsWt
   `;
 
-  let CatalogueData = await exeQuery(conn, {
+  let CatalogData = await exeQuery(conn, {
     selectClause,
     from: 'OrdDsg',
     whereConditions,
@@ -722,8 +726,8 @@ async function getCatalogueDetails(conn){
     inputTypeMap,
     inputValuesMap
   });
-  return CatalogueData[0] || {};
+  return CatalogData[0] || {};
 };
 
 
-module.exports = { getCatalog, copyOrdDsg, moveDsg, delOrdDsg, createOrder,getCatalogueDetails };
+module.exports = { getCatalog, copyOrdDsg, moveDsg, delOrdDsg, createOrder, getCatalogDetails };
