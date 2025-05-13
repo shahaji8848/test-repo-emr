@@ -185,7 +185,34 @@ else if(page_type == 'Cart Page'){
       }
   }
 }
-  else{
+else if (page_type == 'Login Page'){
+  response = {
+    "data": {
+      "page_name": "Login Page",
+      "page_url": "",
+      "from_date": "2025-01-10",
+      "to_date": "2025-01-24",
+      "page_type": "Login Page",
+      "product_category_page_layout": "",
+      "filters_component": "",
+      "product_card_components": "",
+      "magnified_image_component": null,
+      "product_information_component": null,
+      "associated_component": [
+          {
+              "component": "Fallback Login Page",
+              "component_name": "Falback Login Page",
+              "section_name": "Login",
+              "page_name": "login-page",
+              "image": "",
+              "properties": null
+          }
+      ]
+    }
+  }
+
+}
+else{
     response = {
         "message": {
             "msg": "error",
